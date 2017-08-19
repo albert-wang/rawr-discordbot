@@ -27,6 +27,7 @@ func ConnectToWebsocket(token string, onMessage func(*discordgo.Session, *discor
 	err = client.Open()
 	if err != nil {
 		log.Print("Failed to open connection to discord websocket API")
+		log.Print(err)
 		return tracederror.New(err)
 	}
 
