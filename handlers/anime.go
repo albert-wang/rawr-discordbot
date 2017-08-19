@@ -17,7 +17,8 @@ type animeStatus struct {
 	Name           string
 	CurrentEpisode int64
 	LastModified   time.Time
-	Day string
+	Day            string
+	Subgroup       string
 }
 
 func (a *animeStatus) FormattedTime() string {
@@ -95,7 +96,7 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			episode = clamp(episode, -10, 1000)
 			v, ok := res[args[1]]
 			if !ok {
-				res[args[1]] = animeStatus{args[1], episode, time.Now(), "-"}
+				res[args[1]] = animeStatus{args[1], episode, time.Now(), "-", "-"}
 			} else {
 				v.CurrentEpisode = episode
 				v.LastModified = time.Now()
@@ -106,6 +107,29 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, January 02")))
 			break
 		}
+	case "sub":
+		{
+			if len(args) != 3 {
+				chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime sub <name> <value>")
+				return nil
+			}
+			break
+
+			sub := args[2]
+
+			v, ok := res[args[1]]
+			if !ok {
+				res[args[1]] = animeStatus{args[1], 0, time.Now(), "", sub}
+			} else {
+				v.Subgroup = sub
+				v.LastModified = time.Now()
+				res[args[1]] = v
+			}
+
+			v = res[args[1]]
+			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.Subgroup, v.LastModified.Format("Mon, January 02")))
+			break
+		}
 	case "day":
 		{
 			if len(args) != 3 {
@@ -113,11 +137,11 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				return nil
 			}
 
-			valid := []string{ "sun", "mon", "tue", "wen", "thr", "fri", "sat", "-" }
+			valid := []string{"sun", "mon", "tue", "wen", "thr", "fri", "sat", "-"}
 			found := false
 			for _, v := range valid {
 				if args[2] == v {
-					found= true;
+					found = true
 					break
 				}
 			}
@@ -131,7 +155,7 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 
 			v, ok := res[args[1]]
 			if !ok {
-				res[args[1]] = animeStatus{args[1], 0, time.Now(), day}
+				res[args[1]] = animeStatus{args[1], 0, time.Now(), day, "-"}
 			} else {
 				v.Day = day
 				v.LastModified = time.Now()
@@ -175,9 +199,9 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 	case "list":
 		{
 			tplText := `Markdown
-{{ pad .Len " " "Title" }} | Episode | Day | Last Updated
+{{ pad .Len " " "Title" }} | Episode | Day | Sub |Last Updated
 {{ pad .Len "-" "-----" }}-+---------+-----+--------------
-{{ range .Animes }}{{ pad $.Len " " .Name }} | {{ with $x := printf "%d" .CurrentEpisode }}{{ pad 7 " " $x }}{{ end }} | {{ pad 3 " " .Day }} | {{ .LastModified.Format "Mon, January 02" }} 
+{{ range .Animes }}{{ pad $.Len " " .Name }} | {{ with $x := printf "%d" .CurrentEpisode }}{{ pad 7 " " $x }}{{ end }} | {{ pad 3 " " .Day }} | {{ pad 3 " " .Subgroup }} |{{ .LastModified.Format "Mon, January 02" }} 
 {{ end }}`
 
 			buff := bytes.NewBuffer(nil)
