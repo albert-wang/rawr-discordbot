@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -35,6 +36,7 @@ func makeKey(f string, args ...interface{}) string {
 func deserialize(conn redis.Conn, key string, out interface{}) error {
 	bytes, err := redis.Bytes(conn.Do("GET", key))
 	if err != nil {
+		log.Print(err)
 		return err
 	}
 
@@ -46,12 +48,18 @@ func deserialize(conn redis.Conn, key string, out interface{}) error {
 }
 
 func serialize(conn redis.Conn, key string, in interface{}) error {
+	log.Print("Serializing ", in);
 	bytes, err := json.Marshal(in)
 	if err != nil {
+		log.Print(err)
 		return err
 	}
 
 	_, err = conn.Do("SET", key, string(bytes))
+	if err != nil {
+		log.Print(err)
+	}
+
 	return err
 }
 

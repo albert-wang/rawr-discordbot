@@ -16,12 +16,11 @@ import (
 )
 
 func WriteToFile(m *discordgo.MessageCreate, args []string) error {
-	ch, err := chat.GetChannelInformation(m.ChannelID)
+	_, err := chat.GetChannelInformation(m.ChannelID)
 	if err != nil {
 		return err
 	}
 
-	if !ch.IsPrivate {
 		conn := Redis.Get()
 		defer conn.Close()
 
@@ -41,19 +40,13 @@ func WriteToFile(m *discordgo.MessageCreate, args []string) error {
 
 		// Only store the past year worth of data.
 		conn.Do("ZREMRANGEBYSCORE", makeKey("chatlog"), 0, time.Now().UTC().Add(-1*time.Hour*24*356).Unix())
-	}
 	return nil
 }
 
 func SearchHelp(m *discordgo.MessageCreate, args []string) error {
-	ch, err := chat.GetChannelInformation(m.ChannelID)
+	_, err := chat.GetChannelInformation(m.ChannelID)
 	if err != nil {
 		return err
-	}
-
-	if !ch.IsPrivate {
-		chat.SendPrivateMessageTo(m.Author.ID, "Please search through PMs to NVG-Tan only! Use !search-help for help with search syntax.")
-		return nil
 	}
 
 	chat.SendPrivateMessageTo(m.Author.ID, "Syntax: !search [between 'ts' and 'ts'] [username said] [with <number> context] <regex>")
@@ -61,14 +54,9 @@ func SearchHelp(m *discordgo.MessageCreate, args []string) error {
 }
 
 func Search(m *discordgo.MessageCreate, args []string) error {
-	ch, err := chat.GetChannelInformation(m.ChannelID)
+	_, err := chat.GetChannelInformation(m.ChannelID)
 	if err != nil {
 		return err
-	}
-
-	if !ch.IsPrivate {
-		chat.SendPrivateMessageTo(m.Author.ID, "Please search through PMs to NVG-Tan only")
-		return nil
 	}
 
 	// 10 searches every minute.

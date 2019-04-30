@@ -113,7 +113,6 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime sub <name> <value>")
 				return nil
 			}
-			break
 
 			sub := args[2]
 
