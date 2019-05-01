@@ -1,0 +1,40 @@
+variables:
+  REPO_NAME: github.com/albert-wang/rawr-discordbot
+
+before_script:
+  - mkdir -p $GOPATH/src/$(dirname $REPO_NAME)
+  - ln -svf $CI_PROJECT_DIR $GOPATH/src/$REPO_NAME
+  - cd $GOPATH/src/$REPO_NAME
+
+stages:
+  - build
+  - deploy
+
+compile:
+  image: golang:latest
+  stage: build
+  script:
+    - go get
+    - GOOS=linux go build
+  artifacts:
+    paths:
+      - rawr-discordbot
+
+deploy:
+  stage: deploy
+  only:
+    - production
+  tags:
+    - deploy
+  script:
+    - 'echo "{
+      \"InternalBindPort\":\"$InternalBindPort\",
+      \"BotToken\":\"$BotToken\",
+      \"RedisServerAddress\":\"$RedisServerAddress\",
+      \"AWSAccessKey\":\"$AWSAccessKey\",
+      \"AWSSecret\":\"$AWSSecret\"
+    }" > config.json'
+    - docker build -t rawr/discord-bot .
+    - docker stop nvg-tan
+    - docker rm nvg-tan
+    - docker run --detach --name nvg-tan --restart always rawr/discord-bot
