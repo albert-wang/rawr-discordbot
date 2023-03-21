@@ -178,11 +178,21 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				delta = 1
 			}
 
-			v, ok := res[args[1]]
-			if !ok {
-				chat.SendPrivateMessageTo(m.Author.ID, fmt.Sprintf("Usage: !anime %s <name> requires a valid name", args[0]))
+			candidates := []animeStatus{}
+			key := ""
+			for k, v := range res {
+				if strings.HasPrefix(k, args[1]) {
+					candidates = append(candidates, v)
+					key = k
+				}
+			}
+
+			if len(candidates) != 1 {
+				chat.SendPrivateMessageTo(m.Author.ID, fmt.Sprintf("Usage: !anime %s <name> requires a valid name, or name was ambiguous", args[0]))
 				return nil
 			} else {
+				v := candidates[0]
+
 				v.CurrentEpisode = v.CurrentEpisode + delta
 				v.CurrentEpisode = clamp(v.CurrentEpisode, -10, 1000)
 
@@ -190,7 +200,7 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 					v.LastModified = time.Now()
 				}
 
-				res[args[1]] = v
+				res[key] = v
 				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, January 02")))
 			}
 			break
