@@ -38,6 +38,14 @@ func help(m *discordgo.MessageCreate, args []string) error {
 func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	handlers.WriteToFile(m, nil)
 
+	if len(m.Mentions) != 0 {
+		first := m.Mentions[0]
+		if first.Username == "NVG-Tan" && first.Bot {
+			go handlers.RespondToPrompt(m.ChannelID, m.Content)
+			return;
+		}
+	}
+
 	args := argSplit.FindAllString(m.Content, -1)
 	if len(args) == 0 {
 		return

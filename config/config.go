@@ -22,6 +22,9 @@ var AWSAccessKey string
 // Secret key to s3 stuff.
 var AWSSecret string
 
+// Secret key for ChatGPT
+var CPTKey string
+
 // configData is used to temporarily hold values read from a config file
 type configData struct {
 	InternalBindPort   string
@@ -29,6 +32,7 @@ type configData struct {
 	RedisServerAddress string
 	AWSAccessKey       string
 	AWSSecret          string
+	CPTKey             string
 }
 
 // LoadConfigFromFileAndENV creates a new Config object by first reading in
@@ -51,5 +55,6 @@ func LoadConfigFromFileAndENV(path string) error {
 	RedisServerAddress = conf.RedisServerAddress
 	AWSAccessKey = conf.AWSAccessKey
 	AWSSecret = conf.AWSSecret
+	CPTKey = conf.CPTKey
 	return nil
 }
