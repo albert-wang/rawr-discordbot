@@ -36,12 +36,31 @@ func help(m *discordgo.MessageCreate, args []string) error {
 }
 
 func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	handlers.WriteToFile(m, nil)
+	if chat.IsBotUser(m.Author) {
+		return
+	}
 
 	if len(m.Mentions) != 0 {
-		first := m.Mentions[0]
-		if first.Username == "NVG-Tan" && first.Bot {
+		canAI := false
+		for _, v := range m.Mentions {
+			if chat.IsBotUser(v) {
+				canAI = true
+			}
+		}
+
+		if canAI {
 			go handlers.RespondToPrompt(m.ChannelID, m.Content)
+			return
+		}
+	}
+
+	if len(m.Attachments) != 0 {
+		handlers.RegisterAttachmentFromMessage(m)
+	}
+
+	if len(m.StickerItems) != 0 {
+		if m.StickerItems[0].Name == "landscape" {
+			go handlers.RotateLastImages(m, []string{"-90"})
 			return;
 		}
 	}
@@ -55,10 +74,6 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	args = args[1:]
 
 	if !strings.HasPrefix(cmd, "!") {
-		return
-	}
-
-	if m.Author.Username == "NVG-Tan" {
 		return
 	}
 
@@ -108,10 +123,9 @@ func main() {
 	mapping["help"] = help
 	mapping["smug"] = handlers.RandomS3FileFrom("img.rawr.moe", "smug/")
 	mapping["kajiura"] = handlers.RandomS3FileFrom("img.rawr.moe", "music/")
-	mapping["search"] = handlers.Search
-	mapping["search-help"] = handlers.SearchHelp
 	mapping["countdown"] = handlers.Countdown
 	mapping["anime"] = handlers.AnimeStatus
+	mapping["rotate"] = handlers.RotateLastImages
 	mapping["junbiOK"] = handlers.JunbiOK
 	mapping["rdy"] = handlers.JunbiOK
 

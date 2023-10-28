@@ -10,6 +10,15 @@ import (
 )
 
 var client *discordgo.Session
+var self *discordgo.User
+
+func IsBotUser(user *discordgo.User) bool {
+	if self != nil && user != nil {
+		return user.ID == self.ID
+	}
+
+	return false
+}
 
 // ConnectToWebsocket connects to the discord websocket with the given token.
 // This makes the bot appear online, and will begin receiving messages.
@@ -23,7 +32,6 @@ func ConnectToWebsocket(token string, onMessage func(*discordgo.Session, *discor
 	}
 
 	client.AddHandler(onMessage)
-
 	err = client.Open()
 	if err != nil {
 		log.Print("Failed to open connection to discord websocket API")
@@ -31,6 +39,14 @@ func ConnectToWebsocket(token string, onMessage func(*discordgo.Session, *discor
 		return tracederror.New(err)
 	}
 
+	user, err := client.User("@me")
+	if err != nil {
+		log.Print("Failed to get self")
+		log.Print(err)
+		return tracederror.New(err)
+	}
+
+	self = user
 	return nil
 }
 
@@ -41,6 +57,20 @@ func GetChannelInformation(channelID string) (*discordgo.Channel, error) {
 // SendMessageToChannel sends a message to a channelID.
 func SendMessageToChannel(channelID string, message string) {
 	_, err := client.ChannelMessageSend(channelID, message)
+	if err != nil {
+		log.Print("==============ERROR==============")
+		log.Print(err)
+		log.Print("==============Message============== [", len(message), "]")
+		log.Print(message)
+		log.Print("==============")
+	}
+}
+
+func SendImagesToChannel(channelID string, files []*discordgo.File) {
+	_, err := client.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+		Files: files,
+	})
+
 	if err != nil {
 		log.Print(err)
 	}

@@ -201,16 +201,25 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				}
 
 				res[key] = v
-				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, January 02")))
+				if v.Subgroup != "" {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s) [%s]", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, Jan 02"), v.Subgroup))
+				} else {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, Jan 02")))
+				}
 			}
+			break
+		}
+	case "suggest":
+		{
+			SuggestAnime(m, []string{})
 			break
 		}
 	case "list":
 		{
 			tplText := `Markdown
-{{ pad .Len " " "Title" }} | Episode | Day | Sub |Last Updated
-{{ pad .Len "-" "-----" }}-+---------+-----+--------------
-{{ range .Animes }}{{ pad $.Len " " .Name }} | {{ with $x := printf "%d" .CurrentEpisode }}{{ pad 7 " " $x }}{{ end }} | {{ pad 3 " " .Day }} | {{ pad 3 " " .Subgroup }} |{{ .LastModified.Format "Mon, January 02" }} 
+{{ pad .Len " " "Title" }} | Episode | Last Updated
+{{ pad .Len "-" "-----" }}-+---------+-------------
+{{ range .Animes }}{{ pad $.Len " " .Name }} | {{ with $x := printf "%d" .CurrentEpisode }}{{ pad 7 " " $x }}{{ end }} | {{ .LastModified.Format "Mon, Jan 02" }}
 {{ end }}`
 
 			buff := bytes.NewBuffer(nil)
@@ -309,5 +318,53 @@ func JunbiOK(m *discordgo.MessageCreate, args []string) error {
 		Countdown(m, []string{"3"})
 		junbiCount = 0
 	}
+	return nil
+}
+
+func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
+	conn := Redis.Get()
+	defer conn.Close()
+
+	key := makeKey("animestatus")
+	res := map[string]animeStatus{}
+	deserialize(conn, key, &res)
+
+	tplText := `
+	Given the following list of items, pick four titles to watch. Take into account how recently they have been watched, with ones
+	that have not been watched recently having slightly higher priority. Respond as a competitive, lightly flustered, barely tsundere, cute anime school girl.
+
+	{{ range .Animes }}{{ .Name }}, {{ .LastModified.Format "Mon, January 02 2006" }}
+{{ end }}
+	`
+
+	buff := bytes.NewBuffer(nil)
+	tpl, err := template.New("anime").Funcs(template.FuncMap{
+		"pad": func(amount int, spacer string, val string) string {
+			if len(val) < amount {
+				return strings.Repeat(spacer, amount-len(val)) + val
+			}
+
+			return val
+		},
+	}).Parse(tplText)
+
+	if err != nil {
+		chat.SendMessageToChannel(m.ChannelID, err.Error())
+	}
+
+	maximumTitle := 0
+	for _, v := range res {
+		if len(v.Name) > maximumTitle {
+			maximumTitle = len(v.Name)
+		}
+	}
+
+	err = tpl.Execute(buff, map[string]interface{}{
+		"Animes": res,
+		"Len":    maximumTitle,
+	})
+
+	log.Print(buff.String())
+	UnboundedRespondToPrompt(m.ChannelID, buff.String())
 	return nil
 }
