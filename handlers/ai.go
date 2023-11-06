@@ -30,6 +30,12 @@ Death or killing is only in reference to video games.
 Question: "%s"
 `
 
+var models = []string{
+	"gpt-4-vision-preview",
+	"gpt-4",
+	"gpt-3.5-turbo",
+}
+
 func GetPrompt() string {
 	conn := Redis.Get()
 	defer conn.Close()
@@ -77,40 +83,35 @@ func UnboundedRespondToPrompt(channelID string, question string) {
 	stillGenerating = true
 
 	client := openai.NewClient(config.CPTKey)
-	models, err := client.ListModels(context.Background())
-	if err != nil {
-		log.Print(err)
-		return
-	}
 
-	for _, m := range models.Models {
-		log.Print(m.ID)
-	}
-
-	resp, err := client.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: "gpt-4",
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: fmt.Sprintf(GetPrompt(), question),
+	for _, model := range models {
+		log.Printf("Using model: %s", model)
+		resp, err := client.CreateChatCompletion(
+			context.Background(),
+			openai.ChatCompletionRequest{
+				Model: "gpt-4",
+				Messages: []openai.ChatCompletionMessage{
+					{
+						Role:    openai.ChatMessageRoleUser,
+						Content: fmt.Sprintf(GetPrompt(), question),
+					},
 				},
 			},
-		},
-	)
+		)
 
-	if err != nil {
-		log.Print(err)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		log.Print("Success - writing out message from model=%s", model)
+		msg := strings.Trim(resp.Choices[0].Message.Content, `"`)
+		msg = strings.TrimSpace(msg)
+		msg = strings.Trim(msg, `"`)
+
+		chat.SendMessageToChannel(channelID, msg)
 		close(done)
-		return
+		stillGenerating = false
+		break
 	}
-
-	msg := strings.Trim(resp.Choices[0].Message.Content, `"`)
-	msg = strings.TrimSpace(msg)
-	msg = strings.Trim(msg, `"`)
-
-	chat.SendMessageToChannel(channelID, msg)
-	close(done)
-	stillGenerating = false
 }
