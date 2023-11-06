@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
@@ -26,12 +27,11 @@ You like starcraft, fighting games, FFXIV, and anime.
 You have green eyes, blonde hair, and your favorite color is blue.
 If there is a choice, you must choose one option.
 Death or killing is only in reference to video games.
-
-Question: "%s"
 `
 
 var models = []string{
 	"gpt-4-vision-preview",
+	"gpt-4-1106-preview",
 	"gpt-4",
 	"gpt-3.5-turbo",
 }
@@ -52,7 +52,7 @@ func GetPrompt() string {
 	return redisPrompt
 }
 
-func RespondToPrompt(channelID string, question string) {
+func RespondToPrompt(channelID string, question string, attachments []string) {
 	if stillGenerating {
 		chat.SendMessageToChannel(channelID, "Let me cook!")
 		return
@@ -68,10 +68,10 @@ func RespondToPrompt(channelID string, question string) {
 		return
 	}
 
-	UnboundedRespondToPrompt(channelID, question)
+	UnboundedRespondToPrompt(channelID, question, attachments)
 }
 
-func UnboundedRespondToPrompt(channelID string, question string) {
+func UnboundedRespondToPrompt(channelID string, question string, attachments []string) {
 	r := regexp.MustCompile(`(<@\d+>)`)
 	question = r.ReplaceAllString(question, "")
 	question = strings.TrimSpace(question)
@@ -84,16 +84,35 @@ func UnboundedRespondToPrompt(channelID string, question string) {
 
 	client := openai.NewClient(config.CPTKey)
 
+	content := []openai.ChatContent{{
+		Type: "text",
+		Text: fmt.Sprintf(GetPrompt(), question),
+	}}
+
+	for _, v := range attachments {
+		content = append(content, openai.ChatContent{
+			Type:     "image_url",
+			ImageURL: v,
+		})
+	}
+
 	for _, model := range models {
 		log.Printf("Using model: %s", model)
+
+		actualContent := content
+		if !strings.Contains(model, "vision") {
+			actualContent = []openai.ChatContent{content[0]}
+		}
+
 		resp, err := client.CreateChatCompletion(
 			context.Background(),
 			openai.ChatCompletionRequest{
-				Model: "gpt-4",
-				Messages: []openai.ChatCompletionMessage{
+				Model:     model,
+				MaxTokens: 780,
+				Messages: []openai.ChatCompletionMessageInput{
 					{
 						Role:    openai.ChatMessageRoleUser,
-						Content: fmt.Sprintf(GetPrompt(), question),
+						Content: actualContent,
 					},
 				},
 			},
@@ -104,7 +123,11 @@ func UnboundedRespondToPrompt(channelID string, question string) {
 			continue
 		}
 
-		log.Print("Success - writing out message from model=%s", model)
+		log.Printf("Success - writing out message from model=%s", model)
+
+		dbg, _ := json.MarshalIndent(resp, "", "  ")
+		log.Print(string(dbg))
+
 		msg := strings.Trim(resp.Choices[0].Message.Content, `"`)
 		msg = strings.TrimSpace(msg)
 		msg = strings.Trim(msg, `"`)

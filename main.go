@@ -49,7 +49,8 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 		if canAI {
-			go handlers.RespondToPrompt(m.ChannelID, m.Content)
+			attachments := handlers.ConvertAttachmentsToDataURL(m.Attachments, 1920, 1080)
+			go handlers.RespondToPrompt(m.ChannelID, m.Content, attachments)
 			return
 		}
 	}
@@ -61,7 +62,7 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if len(m.StickerItems) != 0 {
 		if m.StickerItems[0].Name == "landscape" {
 			go handlers.RotateLastImages(m, []string{"-90"})
-			return;
+			return
 		}
 	}
 

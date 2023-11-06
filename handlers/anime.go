@@ -365,6 +365,6 @@ func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
 	})
 
 	log.Print(buff.String())
-	UnboundedRespondToPrompt(m.ChannelID, buff.String())
+	UnboundedRespondToPrompt(m.ChannelID, buff.String(), []string{})
 	return nil
 }
