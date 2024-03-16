@@ -12,7 +12,7 @@ import (
 
 	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/bwmarrin/discordgo"
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 )
 
 func WriteToFile(m *discordgo.MessageCreate, args []string) error {
@@ -21,25 +21,25 @@ func WriteToFile(m *discordgo.MessageCreate, args []string) error {
 		return err
 	}
 
-		conn := Redis.Get()
-		defer conn.Close()
+	conn := Redis.Get()
+	defer conn.Close()
 
-		files := []string{}
+	files := []string{}
 
-		for _, v := range m.Attachments {
-			files = append(files, v.URL)
-		}
+	for _, v := range m.Attachments {
+		files = append(files, v.URL)
+	}
 
-		fileMsg := ""
-		if len(files) > 0 {
-			fileMsg = "\x01" + strings.Join(files, "\x01")
-		}
+	fileMsg := ""
+	if len(files) > 0 {
+		fileMsg = "\x01" + strings.Join(files, "\x01")
+	}
 
-		conn.Do("ZADD", makeKey("chatlog"), time.Now().UTC().Unix(), fmt.Sprintf("%d\x01%s\x01%s%s",
-			time.Now().UTC().Unix(), m.Author.Username, m.ContentWithMentionsReplaced(), fileMsg))
+	conn.Do("ZADD", makeKey("chatlog"), time.Now().UTC().Unix(), fmt.Sprintf("%d\x01%s\x01%s%s",
+		time.Now().UTC().Unix(), m.Author.Username, m.ContentWithMentionsReplaced(), fileMsg))
 
-		// Only store the past year worth of data.
-		conn.Do("ZREMRANGEBYSCORE", makeKey("chatlog"), 0, time.Now().UTC().Add(-1*time.Hour*24*356).Unix())
+	// Only store the past year worth of data.
+	conn.Do("ZREMRANGEBYSCORE", makeKey("chatlog"), 0, time.Now().UTC().Add(-1*time.Hour*24*356).Unix())
 	return nil
 }
 

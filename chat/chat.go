@@ -3,6 +3,7 @@ package chat
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/albert-wang/tracederror"
@@ -85,21 +86,88 @@ func SendPrivateMessageTo(user string, message string) {
 	SendMessageToChannel(ch.ID, message)
 }
 
-// ShowTypingUntilChannelIsClosed will display the bot as typing something in
-// the given channel, until a signal is pushed into the golang channel `ch`. Closing
-// the golang channel will also stop the typing animation.
-func ShowTypingUntilChannelIsClosed(channelID string, ch chan int) {
-	t := time.Tick(time.Second / 2 * 5)
-	processing := true
+func GetNick(guildID string, user string) string {
+	member, err := client.GuildMember(guildID, user)
+	if err != nil {
+		log.Print(err)
+		return fmt.Sprintf("<User:%s>", user)
+	}
 
-	for processing {
-		client.ChannelTyping(channelID)
-		select {
-		case <-t:
-			break
-		case <-ch:
-			processing = false
-			break
+	if member.Nick == "" {
+		if member.User.GlobalName == "" {
+			return member.User.Username
 		}
+
+		return member.User.GlobalName
+	}
+
+	return member.Nick
+}
+
+func GetPreviousMessageFromUser(guildID string, channelID string, user string) []*discordgo.Message {
+	messages, err := client.ChannelMessages(channelID, 10, "", "", "")
+	if err != nil {
+		log.Print(err)
+		return []*discordgo.Message{}
+	}
+
+	if user == "" {
+		return messages
+	}
+
+	user = strings.ToLower(user)
+
+	idToNick := map[string]string{}
+
+	results := []*discordgo.Message{}
+	for _, v := range messages {
+		nick, ok := idToNick[v.Author.ID]
+		if !ok {
+			member, err := client.GuildMember(guildID, v.Author.ID)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+
+			nick = member.Nick
+			idToNick[v.Author.ID] = nick
+		}
+
+		normalizedUsername := strings.ToLower(v.Author.Username)
+		normalizedNick := strings.ToLower(nick)
+		if strings.Contains(normalizedUsername, user) || strings.Contains(normalizedNick, user) {
+			// Just going to steal the email field here, lol
+			v.Author.Email = nick
+			results = append(results, v)
+		}
+	}
+
+	return results
+}
+
+// ShowTyping will display the bot as typing something in
+// the given channel until the returned function is called.
+func ShowTyping(channelID string) func() {
+	ch := make(chan int)
+
+	go func() {
+
+		t := time.Tick(time.Second / 2 * 5)
+		processing := true
+
+		for processing {
+			client.ChannelTyping(channelID)
+			select {
+			case <-t:
+				break
+			case <-ch:
+				processing = false
+				break
+			}
+		}
+	}()
+
+	return func() {
+		close(ch)
 	}
 }

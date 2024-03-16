@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/s3"
 
@@ -49,8 +49,7 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 		if canAI {
-			attachments := handlers.ConvertAttachmentsToDataURL(m.Attachments, 1920, 1080)
-			go handlers.RespondToPrompt(m.ChannelID, m.Content, attachments)
+			go handlers.RespondToPrompt(m)
 			return
 		}
 	}
@@ -129,12 +128,14 @@ func main() {
 	mapping["rotate"] = handlers.RotateLastImages
 	mapping["junbiOK"] = handlers.JunbiOK
 	mapping["rdy"] = handlers.JunbiOK
+	mapping["test"] = handlers.Test
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/searchresult", handlers.SearchResults)
 	chat.ConnectToWebsocket(config.BotToken, onMessage)
 
 	log.Printf("Listening on :%s", config.InternalBindPort)
+
 	err = http.ListenAndServe(fmt.Sprintf(":%s", config.InternalBindPort), mux)
 	if err != nil {
 		log.Print(err)

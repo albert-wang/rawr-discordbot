@@ -331,7 +331,7 @@ func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
 
 	tplText := `
 	Given the following list of items, pick four titles to watch. Take into account how recently they have been watched, with ones
-	that have not been watched recently having slightly higher priority. Respond as a competitive, lightly flustered, barely tsundere, cute anime school girl.
+	that have not been watched recently having slightly higher priority.
 
 	{{ range .Animes }}{{ .Name }}, {{ .LastModified.Format "Mon, January 02 2006" }}
 {{ end }}
@@ -364,7 +364,8 @@ func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
 		"Len":    maximumTitle,
 	})
 
-	log.Print(buff.String())
-	UnboundedRespondToPrompt(m.ChannelID, buff.String(), []string{})
+	UnboundedRespondToContent(m.GuildID, m.ChannelID, textContent(
+		fmt.Sprintf(GetPrompt(), buff.String()),
+	), false)
 	return nil
 }

@@ -1,15 +1,15 @@
 package handlers
 
 import (
-	"log"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 	"github.com/mitchellh/goamz/s3"
 )
 
@@ -48,7 +48,7 @@ func deserialize(conn redis.Conn, key string, out interface{}) error {
 }
 
 func serialize(conn redis.Conn, key string, in interface{}) error {
-	log.Print("Serializing ", in);
+	log.Print("Serializing ", in)
 	bytes, err := json.Marshal(in)
 	if err != nil {
 		log.Print(err)

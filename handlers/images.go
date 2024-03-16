@@ -23,8 +23,8 @@ func AttachmentExtension(attachment *discordgo.MessageAttachment) string {
 	return path.Ext(name)
 }
 
-func DownloadAttachment(attach *discordgo.MessageAttachment) ([]byte, error) {
-	resp, err := http.Get(attach.URL)
+func DownloadAttachment(url string) ([]byte, error) {
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func ConvertAttachmentsToDataURL(attachments []*discordgo.MessageAttachment, max
 			continue
 		}
 
-		b, err := DownloadAttachment(attachment)
+		b, err := DownloadAttachment(attachment.URL)
 		if err != nil {
 			log.Print(err)
 			continue

@@ -24,9 +24,8 @@ func RotateLastImages(m *discordgo.MessageCreate, args []string) error {
 		return nil
 	}
 
-	ch := make(chan int)
-	go chat.ShowTypingUntilChannelIsClosed(m.ChannelID, ch)
-	defer close(ch)
+	complete := chat.ShowTyping(m.ChannelID)
+	defer complete()
 
 	amount := "90"
 	if len(args) == 1 {
@@ -40,7 +39,7 @@ func RotateLastImages(m *discordgo.MessageCreate, args []string) error {
 			continue
 		}
 
-		bytes, err := DownloadAttachment(attach)
+		bytes, err := DownloadAttachment(attach.URL)
 		if err != nil {
 			log.Print(err)
 			continue
