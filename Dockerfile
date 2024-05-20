@@ -1,6 +1,6 @@
 FROM ubuntu:latest
 
-RUN apt update && apt -y install ca-certificates imagemagick
+RUN apt update && apt -y install ca-certificates imagemagick tzdata
 
 ADD rawr-discordbot .
 ADD config.json .

@@ -22,9 +22,9 @@ func getCurrentTimePromptFragment() string {
 	now := time.Now()
 	where, err := time.LoadLocation("America/Chicago")
 
-	today := fmt.Sprintf("It is currently %s", now.Format("Monday, Jan 02 2006"))
+	today := fmt.Sprintf("Respond as if it is %s", now.Format("Monday, Jan 02 2006"))
 	if err == nil {
-		today = fmt.Sprintf("It is currently %s", now.In(where).Format("Monday, Jan 02 2006"))
+		today = fmt.Sprintf("Respond as if it is %s", now.In(where).Format("Monday, Jan 02 2006"))
 	}
 
 	return today

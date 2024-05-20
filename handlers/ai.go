@@ -84,6 +84,13 @@ func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFun
 
 	if err != nil {
 		log.Print(err)
+
+		dbgreq, _ := json.MarshalIndent(req, "", "  ")
+		log.Print(string(dbgreq))
+
+		dbg, _ := json.MarshalIndent(resp, "", "  ")
+		log.Print(string(dbg))
+
 		return "", err
 	}
 
@@ -109,7 +116,7 @@ func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFun
 		additionalContext, _ := invokeFunction(guild, channel, choice.Message.FunctionCall.Name, choice.Message.FunctionCall.Arguments)
 		if len(additionalContext) > 0 {
 			*messages = append(*messages, openai.ChatCompletionMessageInput{
-				Role:    openai.ChatMessageRoleFunction,
+				Role:    openai.ChatMessageRoleUser,
 				Name:    choice.Message.FunctionCall.Name,
 				Content: additionalContext,
 			})
@@ -155,7 +162,7 @@ func UnboundedRespondToContent(guildID string, channelID string, content []opena
 		message := []openai.ChatCompletionMessageInput{
 			{
 				Role:    openai.ChatMessageRoleUser,
-				Content: *&actualContent,
+				Content: actualContent,
 			},
 		}
 

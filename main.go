@@ -128,7 +128,6 @@ func main() {
 	mapping["rotate"] = handlers.RotateLastImages
 	mapping["junbiOK"] = handlers.JunbiOK
 	mapping["rdy"] = handlers.JunbiOK
-	mapping["test"] = handlers.Test
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/searchresult", handlers.SearchResults)

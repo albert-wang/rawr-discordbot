@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -126,7 +127,7 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			}
 
 			v = res[args[1]]
-			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.Subgroup, v.LastModified.Format("Mon, January 02")))
+			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %s (%s)", v.Name, v.Subgroup, v.LastModified.Format("Mon, January 02")))
 			break
 		}
 	case "day":
@@ -216,6 +217,12 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 		}
 	case "list":
 		{
+			sortByTime := false
+			if len(args) == 2 {
+				if args[1] == "updated" {
+					sortByTime = true
+				}
+			}
 			tplText := `Markdown
 {{ pad .Len " " "Title" }} | Episode | Last Updated
 {{ pad .Len "-" "-----" }}-+---------+-------------
@@ -245,8 +252,23 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				}
 			}
 
+			animes := []animeStatus{}
+			for _, v := range res {
+				animes = append(animes, v)
+			}
+
+			if sortByTime {
+				sort.Slice(animes, func(i, j int) bool {
+					return animes[i].LastModified.Before(animes[j].LastModified)
+				})
+			} else {
+				sort.Slice(animes, func(i, j int) bool {
+					return animes[i].Name < animes[j].Name
+				})
+			}
+
 			err = tpl.Execute(buff, map[string]interface{}{
-				"Animes": res,
+				"Animes": animes,
 				"Len":    maximumTitle,
 			})
 

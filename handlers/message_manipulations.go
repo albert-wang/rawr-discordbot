@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"strings"
 
 	"github.com/albert-wang/rawr-discordbot/chat"
@@ -26,11 +25,4 @@ func ResolveMentionsToNicks(message string, guild string, mentions []*discordgo.
 	}
 
 	return message
-}
-
-func Test(message *discordgo.MessageCreate, args []string) error {
-	str := ResolveMentionsToNicks(message.Content, message.GuildID, message.Mentions)
-	log.Print(str)
-
-	return nil
 }

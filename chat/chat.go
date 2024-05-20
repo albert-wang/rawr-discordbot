@@ -105,7 +105,7 @@ func GetNick(guildID string, user string) string {
 }
 
 func GetPreviousMessageFromUser(guildID string, channelID string, user string) []*discordgo.Message {
-	messages, err := client.ChannelMessages(channelID, 10, "", "", "")
+	messages, err := client.ChannelMessages(channelID, 30, "", "", "")
 	if err != nil {
 		log.Print(err)
 		return []*discordgo.Message{}
@@ -116,9 +116,7 @@ func GetPreviousMessageFromUser(guildID string, channelID string, user string) [
 	}
 
 	user = strings.ToLower(user)
-
 	idToNick := map[string]string{}
-
 	results := []*discordgo.Message{}
 	for _, v := range messages {
 		nick, ok := idToNick[v.Author.ID]
@@ -135,7 +133,7 @@ func GetPreviousMessageFromUser(guildID string, channelID string, user string) [
 
 		normalizedUsername := strings.ToLower(v.Author.Username)
 		normalizedNick := strings.ToLower(nick)
-		if strings.Contains(normalizedUsername, user) || strings.Contains(normalizedNick, user) {
+		if strings.Contains(normalizedUsername, user) || strings.Contains(normalizedNick, user) || user == "user" {
 			// Just going to steal the email field here, lol
 			v.Author.Email = nick
 			results = append(results, v)
