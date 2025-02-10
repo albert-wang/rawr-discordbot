@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/go-rod/rod"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/gomodule/redigo/redis"
@@ -90,10 +91,14 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	rand.Seed(time.Now().Unix())
 
 	var err error
-	config.LoadConfigFromFileAndENV("config.json")
+	config.LoadConfigFromFileAndENV("./config/config.json")
+
+	browser := rod.New().MustConnect()
+	page := browser.MustPage("https://crunchyroll.com").MustWaitStable()
+
+	page.Eval("() => {}")
 
 	handlers.Redis = &redis.Pool{
 		MaxIdle:     3,

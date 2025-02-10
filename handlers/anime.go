@@ -3,7 +3,6 @@ package handlers
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,14 +11,15 @@ import (
 
 	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/bwmarrin/discordgo"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 type animeStatus struct {
-	Name           string
-	CurrentEpisode int64
-	LastModified   time.Time
-	Day            string
-	Subgroup       string
+	Name            string
+	CurrentEpisode  int64
+	LastModified    time.Time
+	CrunchyrollCode string // In value?query-param format
+	Subgroup        string
 }
 
 func (a *animeStatus) FormattedTime() string {
@@ -38,6 +38,23 @@ func clamp(v, l, h int64) int64 {
 	return v
 }
 
+func fuzzySearch(lookup string, animes map[string]animeStatus) (string, *animeStatus) {
+	candidates := []animeStatus{}
+	key := ""
+	for k, v := range animes {
+		if strings.HasPrefix(k, lookup) {
+			candidates = append(candidates, v)
+			key = k
+		}
+	}
+
+	if len(candidates) != 1 {
+		return "", nil
+	}
+
+	return key, &candidates[0]
+}
+
 func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 	if len(args) < 1 {
 		chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime <del|mv|incr|decr|set|list> <name> [<value>]")
@@ -47,8 +64,8 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 	defer conn.Close()
 
 	key := makeKey("animestatus")
-	res := map[string]animeStatus{}
-	deserialize(conn, key, &res)
+	animes := map[string]animeStatus{}
+	deserialize(conn, key, &animes)
 
 	// Supports del, mv, incr, decr, set, list
 	switch args[0] {
@@ -59,7 +76,7 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				return nil
 			}
 
-			delete(res, args[1])
+			delete(animes, args[1])
 			break
 		}
 	case "mv":
@@ -69,16 +86,16 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				return nil
 			}
 
-			_, ok := res[args[2]]
-			v, ok2 := res[args[1]]
+			_, ok := animes[args[2]]
+			v, ok2 := animes[args[1]]
 
 			if ok || !ok2 {
 				chat.SendPrivateMessageTo(m.Author.ID, "!anime mv cannot overwrite elements, or source element did not exist")
 			}
 
 			v.Name = args[2]
-			res[args[2]] = v
-			delete(res, args[1])
+			animes[args[2]] = v
+			delete(animes, args[1])
 			break
 		}
 
@@ -95,16 +112,16 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			}
 
 			episode = clamp(episode, -10, 1000)
-			v, ok := res[args[1]]
+			v, ok := animes[args[1]]
 			if !ok {
-				res[args[1]] = animeStatus{args[1], episode, time.Now(), "-", "-"}
+				animes[args[1]] = animeStatus{args[1], episode, time.Now(), "-", "-"}
 			} else {
 				v.CurrentEpisode = episode
 				v.LastModified = time.Now()
-				res[args[1]] = v
+				animes[args[1]] = v
 			}
 
-			v = res[args[1]]
+			v = animes[args[1]]
 			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, January 02")))
 			break
 		}
@@ -115,57 +132,72 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				return nil
 			}
 
-			sub := args[2]
-
-			v, ok := res[args[1]]
-			if !ok {
-				res[args[1]] = animeStatus{args[1], 0, time.Now(), "", sub}
-			} else {
-				v.Subgroup = sub
-				v.LastModified = time.Now()
-				res[args[1]] = v
+			k, anime := fuzzySearch(args[1], animes)
+			if anime == nil {
+				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("I don't know anything about %s!", args[1]))
+				break
 			}
 
-			v = res[args[1]]
-			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %s (%s)", v.Name, v.Subgroup, v.LastModified.Format("Mon, January 02")))
+			sub := args[2]
+			anime.Subgroup = sub
+			anime.LastModified = time.Now()
+			animes[k] = *anime
+
+			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %s (%s)", anime.Name, anime.Subgroup, anime.LastModified.Format("Mon, January 02")))
 			break
 		}
-	case "day":
+	case "cr":
 		{
-			if len(args) != 3 {
-				chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime day <name> <value>")
+			if len(args) != 3 && len(args) != 2 {
+				chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime cr <name> <value>")
 				return nil
 			}
 
-			valid := []string{"sun", "mon", "tue", "wen", "thr", "fri", "sat", "-"}
-			found := false
-			for _, v := range valid {
-				if args[2] == v {
-					found = true
+			if len(args) == 2 {
+				_, anime := fuzzySearch(args[1], animes)
+				if anime == nil {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("I don't know anything about %s!", args[1]))
 					break
 				}
+
+				if anime.CrunchyrollCode == "" {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("No crunchyroll data for %s exists", anime.Name))
+					break
+				}
+
+				data, err := ParseCrunchyrollString(anime.CrunchyrollCode)
+				if err != nil {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("The crunchydata is wrong? (%s)", anime.CrunchyrollCode))
+					break
+				}
+
+				ep, err := GetBestGuessCrunchyrollLink(data, anime.CurrentEpisode)
+				if err != nil {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("Couldn't get episode info, %s", err.Error()))
+					break
+				}
+
+				chat.SendMessageToChannel(m.ChannelID, ep.Link)
+				break
 			}
 
-			if !found {
-				chat.SendPrivateMessageTo(m.Author.ID, "Invalid day")
-				return nil
+			if len(args) == 3 {
+				k, anime := fuzzySearch(args[1], animes)
+				if anime == nil {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("I don't know anything about %s!", args[1]))
+					break
+				}
+
+				crunchyrollCode := args[2]
+
+				anime.CrunchyrollCode = crunchyrollCode
+				anime.LastModified = time.Now()
+				animes[k] = *anime
+
+				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s -> %s", anime.Name, anime.CrunchyrollCode))
 			}
 
-			day := args[2]
-
-			v, ok := res[args[1]]
-			if !ok {
-				res[args[1]] = animeStatus{args[1], 0, time.Now(), day, "-"}
-			} else {
-				v.Day = day
-				v.LastModified = time.Now()
-				res[args[1]] = v
-			}
-
-			v = res[args[1]]
-			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, January 02")))
 			break
-
 		}
 	case "decr", "incr":
 		{
@@ -179,33 +211,23 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				delta = 1
 			}
 
-			candidates := []animeStatus{}
-			key := ""
-			for k, v := range res {
-				if strings.HasPrefix(k, args[1]) {
-					candidates = append(candidates, v)
-					key = k
-				}
-			}
-
-			if len(candidates) != 1 {
+			k, anime := fuzzySearch(args[1], animes)
+			if anime == nil {
 				chat.SendPrivateMessageTo(m.Author.ID, fmt.Sprintf("Usage: !anime %s <name> requires a valid name, or name was ambiguous", args[0]))
 				return nil
 			} else {
-				v := candidates[0]
-
-				v.CurrentEpisode = v.CurrentEpisode + delta
-				v.CurrentEpisode = clamp(v.CurrentEpisode, -10, 1000)
+				anime.CurrentEpisode = anime.CurrentEpisode + delta
+				anime.CurrentEpisode = clamp(anime.CurrentEpisode, -10, 1000)
 
 				if args[0] == "incr" {
-					v.LastModified = time.Now()
+					anime.LastModified = time.Now()
 				}
 
-				res[key] = v
-				if v.Subgroup != "" {
-					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s) [%s]", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, Jan 02"), v.Subgroup))
+				animes[k] = *anime
+				if anime.Subgroup != "" {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s) [%s]", anime.Name, anime.CurrentEpisode, anime.LastModified.Format("Mon, Jan 02"), anime.Subgroup))
 				} else {
-					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", v.Name, v.CurrentEpisode, v.LastModified.Format("Mon, Jan 02")))
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", anime.Name, anime.CurrentEpisode, anime.LastModified.Format("Mon, Jan 02")))
 				}
 			}
 			break
@@ -223,37 +245,9 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 					sortByTime = true
 				}
 			}
-			tplText := `Markdown
-{{ pad .Len " " "Title" }} | Episode | Last Updated
-{{ pad .Len "-" "-----" }}-+---------+-------------
-{{ range .Animes }}{{ pad $.Len " " .Name }} | {{ with $x := printf "%d" .CurrentEpisode }}{{ pad 7 " " $x }}{{ end }} | {{ .LastModified.Format "Mon, Jan 02" }}
-{{ end }}`
-
-			buff := bytes.NewBuffer(nil)
-
-			tpl, err := template.New("anime").Funcs(template.FuncMap{
-				"pad": func(amount int, spacer string, val string) string {
-					if len(val) < amount {
-						return strings.Repeat(spacer, amount-len(val)) + val
-					}
-
-					return val
-				},
-			}).Parse(tplText)
-
-			if err != nil {
-				chat.SendMessageToChannel(m.ChannelID, err.Error())
-			}
-
-			maximumTitle := 0
-			for _, v := range res {
-				if len(v.Name) > maximumTitle {
-					maximumTitle = len(v.Name)
-				}
-			}
 
 			animes := []animeStatus{}
-			for _, v := range res {
+			for _, v := range animes {
 				animes = append(animes, v)
 			}
 
@@ -267,20 +261,36 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				})
 			}
 
-			err = tpl.Execute(buff, map[string]interface{}{
-				"Animes": animes,
-				"Len":    maximumTitle,
-			})
+			table := CreateTable(
+				TableHeader{"Title", TableAlignRight},
+				TableHeader{"Episode", TableAlignRight},
+				TableHeader{"Subs?", TableAlignRight},
+				TableHeader{"Last Updated", TableAlignLeft},
+			)
 
-			if err != nil {
-				log.Print(err)
+			stringOr := func(v string, def string) string {
+				trimmed := strings.TrimSpace(v)
+				if len(trimmed) == 0 || trimmed == "-" {
+					return def
+				}
+
+				return trimmed
 			}
 
-			chat.SendMessageToChannel(m.ChannelID, "```"+buff.String()+"```")
+			for _, a := range animes {
+				table.AddRow(
+					strings.TrimSpace(a.Name),
+					fmt.Sprintf("%d", a.CurrentEpisode),
+					stringOr(a.Subgroup, " "),
+					a.LastModified.Format("Mon, Jan 02"),
+				)
+			}
+
+			chat.SendMessageToChannel(m.ChannelID, "```Markdown\n"+table.Render()+"```")
 		}
 	}
 
-	serialize(conn, key, &res)
+	serialize(conn, key, &animes)
 	return nil
 }
 
@@ -344,6 +354,10 @@ func JunbiOK(m *discordgo.MessageCreate, args []string) error {
 }
 
 func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
+
+	complete := chat.ShowTyping(m.ChannelID)
+	defer complete()
+
 	conn := Redis.Get()
 	defer conn.Close()
 
@@ -353,7 +367,8 @@ func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
 
 	tplText := `
 	Given the following list of items, pick four titles to watch. Take into account how recently they have been watched, with ones
-	that have not been watched recently having slightly higher priority.
+	that have not been watched recently having slightly higher priority. Don't suggest anything that was last watched over
+	3 months ago.
 
 	{{ range .Animes }}{{ .Name }}, {{ .LastModified.Format "Mon, January 02 2006" }}
 {{ end }}
@@ -386,8 +401,12 @@ func SuggestAnime(m *discordgo.MessageCreate, args []string) error {
 		"Len":    maximumTitle,
 	})
 
-	UnboundedRespondToContent(m.GuildID, m.ChannelID, textContent(
-		fmt.Sprintf(GetPrompt(), buff.String()),
-	), false)
+	messages := GenerateMessagesWithContext(m.GuildID, m.ChannelID, 32)
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:         openai.ChatMessageRoleUser,
+		MultiContent: textContent(buff.String()),
+	})
+
+	UnboundedRespondToContent(m.GuildID, m.ChannelID, messages, true)
 	return nil
 }

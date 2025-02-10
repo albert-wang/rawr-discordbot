@@ -94,11 +94,7 @@ func GetNick(guildID string, user string) string {
 	}
 
 	if member.Nick == "" {
-		if member.User.GlobalName == "" {
-			return member.User.Username
-		}
-
-		return member.User.GlobalName
+		return member.User.Username
 	}
 
 	return member.Nick

@@ -12,15 +12,15 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-func convertMessageToContent(message *discordgo.Message, textPrefix string) ([]openai.ChatContent, bool) {
+func convertMessageToContent(message *discordgo.Message, textPrefix string) ([]openai.ChatMessagePart, bool) {
 	requiresVision := false
 	// Convert text into text content
-	result := []openai.ChatContent{}
+	result := []openai.ChatMessagePart{}
 
 	if strings.TrimSpace(message.Content) != "" {
 		content := ResolveMentionsToNicks(message.Content, message.GuildID, message.Mentions)
 
-		result = append(result, openai.ChatContent{
+		result = append(result, openai.ChatMessagePart{
 			Type: "text",
 			Text: fmt.Sprintf(textPrefix, content),
 		})
@@ -41,14 +41,14 @@ func convertMessageToContent(message *discordgo.Message, textPrefix string) ([]o
 	return result, requiresVision
 }
 
-func convertAttachmentsToContent(message *discordgo.Message) []openai.ChatContent {
-	result := []openai.ChatContent{}
+func convertAttachmentsToContent(message *discordgo.Message) []openai.ChatMessagePart {
+	result := []openai.ChatMessagePart{}
 
 	for _, e := range message.Attachments {
 		b, err := DownloadAttachment(e.URL)
 		out, err := ConvertImage(b, ".jpg",
 			"-resize",
-			"512x512>",
+			"1536x1536>",
 		)
 
 		if err != nil {
@@ -73,9 +73,9 @@ func convertAttachmentsToContent(message *discordgo.Message) []openai.ChatConten
 
 		bs := base64.StdEncoding.EncodeToString(newBytes)
 		result = append(result,
-			openai.ChatContent{
+			openai.ChatMessagePart{
 				Type: "image_url",
-				ImageURL: &openai.ChatImageURL{
+				ImageURL: &openai.ChatMessageImageURL{
 					URL: fmt.Sprintf("data:image/jpeg;base64,%s", bs),
 				},
 			})
@@ -84,11 +84,11 @@ func convertAttachmentsToContent(message *discordgo.Message) []openai.ChatConten
 	return result
 }
 
-func convertEmbedsToContent(message *discordgo.Message) []openai.ChatContent {
-	result := []openai.ChatContent{}
+func convertEmbedsToContent(message *discordgo.Message) []openai.ChatMessagePart {
+	result := []openai.ChatMessagePart{}
 
 	for _, e := range message.Embeds {
-		result = append(result, openai.ChatContent{
+		result = append(result, openai.ChatMessagePart{
 			Type: "text",
 			Text: fmt.Sprintf("%s %s", e.Title, e.Description),
 		})
@@ -97,7 +97,7 @@ func convertEmbedsToContent(message *discordgo.Message) []openai.ChatContent {
 			b, err := DownloadAttachment(e.Thumbnail.URL)
 			out, err := ConvertImage(b, ".jpg",
 				"-resize",
-				"512x512>",
+				"1536x1536>",
 			)
 
 			if err != nil {
@@ -122,9 +122,9 @@ func convertEmbedsToContent(message *discordgo.Message) []openai.ChatContent {
 
 			bs := base64.StdEncoding.EncodeToString(newBytes)
 			result = append(result,
-				openai.ChatContent{
+				openai.ChatMessagePart{
 					Type: "image_url",
-					ImageURL: &openai.ChatImageURL{
+					ImageURL: &openai.ChatMessageImageURL{
 						URL: fmt.Sprintf("data:image/jpeg;base64,%s", bs),
 					},
 				})
@@ -134,8 +134,8 @@ func convertEmbedsToContent(message *discordgo.Message) []openai.ChatContent {
 	return result
 }
 
-func textContent(msg string) []openai.ChatContent {
-	return []openai.ChatContent{{
+func textContent(msg string) []openai.ChatMessagePart {
+	return []openai.ChatMessagePart{{
 		Type: "text",
 		Text: msg,
 	}}

@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/gomodule/redigo/redis"
+	"github.com/sashabaranov/go-openai"
 )
 
 const defaultPrompt = `
@@ -22,9 +24,9 @@ func getCurrentTimePromptFragment() string {
 	now := time.Now()
 	where, err := time.LoadLocation("America/Chicago")
 
-	today := fmt.Sprintf("Respond as if it is %s", now.Format("Monday, Jan 02 2006"))
+	today := fmt.Sprintf("Respond as if it is %s", now.Format("Monday, Jan 02 2006 15:04:05"))
 	if err == nil {
-		today = fmt.Sprintf("Respond as if it is %s", now.In(where).Format("Monday, Jan 02 2006"))
+		today = fmt.Sprintf("Respond as if it is %s", now.In(where).Format("Monday, Jan 02 2006 15:04:05"))
 	}
 
 	return today
@@ -53,4 +55,35 @@ func GetPrompt() string {
 	}
 
 	return strings.Join(parts, "\n\n")
+}
+
+func GenerateMessagesWithContext(guild string, channel string, contextSize int) []openai.ChatCompletionMessage {
+	result := []openai.ChatCompletionMessage{}
+	result = append(result, openai.ChatCompletionMessage{
+		Role:         "developer",
+		MultiContent: textContent(GetPrompt()),
+	})
+
+	messages := chat.GetPreviousMessageFromUser(guild, channel, "")
+	count := len(messages)
+	if contextSize < count {
+		count = contextSize
+	}
+
+	for i := count - 1; i >= 0; i-- {
+		contents, _ := convertMessageToContent(messages[i], fmt.Sprintf("%s > %%s", messages[i].Author.Username))
+		if messages[i].Author.Bot {
+			result = append(result, openai.ChatCompletionMessage{
+				Role:         openai.ChatMessageRoleAssistant,
+				MultiContent: contents,
+			})
+		} else {
+			result = append(result, openai.ChatCompletionMessage{
+				Role:         openai.ChatMessageRoleUser,
+				MultiContent: contents,
+			})
+		}
+	}
+
+	return result
 }

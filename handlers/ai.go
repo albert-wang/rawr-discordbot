@@ -28,17 +28,21 @@ func RespondToPrompt(m *discordgo.MessageCreate) {
 		return
 	}
 
-	question := ResolveMentionsToNicks(m.Content, m.GuildID, m.Mentions)
-	if len(question) > 1024 {
-		chat.SendMessageToChannel(m.ChannelID, "tl;dr.")
-		return
-	}
+	complete := chat.ShowTyping(m.ChannelID)
+	defer complete()
 
-	content, needsVision := convertMessageToContent(m.Message, GetPrompt())
-	UnboundedRespondToContent(m.GuildID, m.ChannelID, content, needsVision)
+	messages := GenerateMessagesWithContext(m.GuildID, m.ChannelID, 32)
+
+	content, _ := convertMessageToContent(m.Message, "%s")
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:         openai.ChatMessageRoleUser,
+		MultiContent: content,
+	})
+
+	UnboundedRespondToContent(m.GuildID, m.ChannelID, messages, true)
 }
 
-func invokeFunction(guild string, channel string, name string, args string) ([]openai.ChatContent, bool) {
+func invokeFunction(guild string, channel string, name string, args string) ([]openai.ChatMessagePart, bool) {
 	log.Print("Invoking function ", name, " with args ", args)
 
 	if name == "get_previous_n_messages_from_user" {
@@ -46,7 +50,7 @@ func invokeFunction(guild string, channel string, name string, args string) ([]o
 		err := json.Unmarshal([]byte(args), &arg)
 		if err != nil {
 			log.Print(err)
-			return []openai.ChatContent{}, false
+			return []openai.ChatMessagePart{}, false
 		}
 
 		return GetPreviousNMessagesFromUser(guild, channel, arg)
@@ -57,16 +61,16 @@ func invokeFunction(guild string, channel string, name string, args string) ([]o
 		err := json.Unmarshal([]byte(args), &arg)
 		if err != nil {
 			log.Print(err)
-			return []openai.ChatContent{}, false
+			return []openai.ChatMessagePart{}, false
 		}
 
 		return GetLastImage(guild, channel, arg)
 	}
 
-	return []openai.ChatContent{}, false
+	return []openai.ChatMessagePart{}, false
 }
 
-func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFunctions bool, client *openai.Client, messages *[]openai.ChatCompletionMessageInput) (string, error) {
+func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFunctions bool, client *openai.Client, messages *[]openai.ChatCompletionMessage) (string, error) {
 	req := openai.ChatCompletionRequest{
 		Model:     model.Name,
 		MaxTokens: 780,
@@ -100,14 +104,11 @@ func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFun
 
 	choice := resp.Choices[0]
 
-	b, _ := json.MarshalIndent(choice, "", "  ")
-	log.Print(string(b))
-
 	if choice.Message.FunctionCall != nil {
 		fn, _ := json.Marshal(choice.Message.FunctionCall)
-		*messages = append(*messages, openai.ChatCompletionMessageInput{
+		*messages = append(*messages, openai.ChatCompletionMessage{
 			Role: openai.ChatMessageRoleAssistant,
-			Content: []openai.ChatContent{{
+			MultiContent: []openai.ChatMessagePart{{
 				Type: "text",
 				Text: string(fn),
 			}},
@@ -115,10 +116,10 @@ func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFun
 
 		additionalContext, _ := invokeFunction(guild, channel, choice.Message.FunctionCall.Name, choice.Message.FunctionCall.Arguments)
 		if len(additionalContext) > 0 {
-			*messages = append(*messages, openai.ChatCompletionMessageInput{
-				Role:    openai.ChatMessageRoleUser,
-				Name:    choice.Message.FunctionCall.Name,
-				Content: additionalContext,
+			*messages = append(*messages, openai.ChatCompletionMessage{
+				Role:         openai.ChatMessageRoleUser,
+				Name:         choice.Message.FunctionCall.Name,
+				MultiContent: additionalContext,
 			})
 		}
 
@@ -136,17 +137,18 @@ func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFun
 	msg = strings.TrimSpace(msg)
 	msg = strings.Trim(msg, `"`)
 
+	msg = strings.TrimPrefix(msg, "NVG-Tan >")
+
+	msg = strings.TrimSpace(msg)
+	msg = strings.Trim(msg, `"`)
+
 	return msg, nil
 }
 
-func UnboundedRespondToContent(guildID string, channelID string, content []openai.ChatContent, needsVision bool) {
+func UnboundedRespondToContent(guildID string, channelID string, messages []openai.ChatCompletionMessage, needsVision bool) {
 	lastRequest = time.Now()
 
-	complete := chat.ShowTyping(channelID)
-	defer complete()
-
 	stillGenerating = true
-
 	client := openai.NewClient(config.CPTKey)
 
 	for _, model := range models {
@@ -156,17 +158,9 @@ func UnboundedRespondToContent(guildID string, channelID string, content []opena
 			}
 		}
 
-		actualContent := content
 		log.Printf("Using model: %s", model.Name)
 
-		message := []openai.ChatCompletionMessageInput{
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: actualContent,
-			},
-		}
-
-		msg, err := MakeOpenAPIRequest(guildID, channelID, model, model.Function, client, &message)
+		msg, err := MakeOpenAPIRequest(guildID, channelID, model, model.Function, client, &messages)
 		if err != nil {
 			log.Print(err)
 			continue

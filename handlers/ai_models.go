@@ -1,8 +1,12 @@
 package handlers
 
 type AIModel struct {
-	Name     string
-	Vision   bool
+	Name string
+
+	// If this model supports vision
+	Vision bool
+
+	// If this model supports function calls
 	Function bool
 }
 

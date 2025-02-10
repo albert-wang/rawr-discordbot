@@ -55,10 +55,10 @@ type GetPreviousNMessagesFromUserArgs struct {
 	Who   string `json:"who"`
 }
 
-func GetPreviousNMessagesFromUser(guild string, channel string, args GetPreviousNMessagesFromUserArgs) ([]openai.ChatContent, bool) {
+func GetPreviousNMessagesFromUser(guild string, channel string, args GetPreviousNMessagesFromUserArgs) ([]openai.ChatMessagePart, bool) {
 	messages := chat.GetPreviousMessageFromUser(guild, channel, args.Who)
 	if len(messages) == 0 {
-		return []openai.ChatContent{}, false
+		return []openai.ChatMessagePart{}, false
 	}
 
 	max := 5
@@ -71,7 +71,7 @@ func GetPreviousNMessagesFromUser(guild string, channel string, args GetPrevious
 	}
 
 	messages = messages[:max]
-	content := []openai.ChatContent{}
+	content := []openai.ChatMessagePart{}
 	needsVision := false
 
 	for _, v := range messages {
@@ -89,14 +89,14 @@ type GetLastImageArgs struct {
 	Who   string `json:"who"`
 }
 
-func GetLastImage(guild string, channel string, args GetLastImageArgs) ([]openai.ChatContent, bool) {
+func GetLastImage(guild string, channel string, args GetLastImageArgs) ([]openai.ChatMessagePart, bool) {
 	log.Print("Getting last image with: ")
 	log.Printf("%+v", args)
 
 	messages := chat.GetPreviousMessageFromUser(guild, channel, args.Who)
 	if len(messages) == 0 {
 		log.Print("Found no relevant messages")
-		return []openai.ChatContent{}, false
+		return []openai.ChatMessagePart{}, false
 	}
 
 	if args.Count == 0 {
@@ -112,7 +112,7 @@ func GetLastImage(guild string, channel string, args GetLastImageArgs) ([]openai
 		max = len(messages) - 1
 	}
 
-	content := []openai.ChatContent{}
+	content := []openai.ChatMessagePart{}
 	processedMessageCount := 0
 	for _, v := range messages {
 		if len(v.Attachments) == 0 && len(v.Embeds) == 0 {
