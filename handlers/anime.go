@@ -3,6 +3,8 @@ package handlers
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,11 +17,11 @@ import (
 )
 
 type animeStatus struct {
-	Name            string
-	CurrentEpisode  int64
-	LastModified    time.Time
-	CrunchyrollCode string // In value?query-param format
-	Subgroup        string
+	Name           string
+	CurrentEpisode int64
+	LastModified   time.Time
+	EpisodeSource  string
+	Subgroup       string
 }
 
 func (a *animeStatus) FormattedTime() string {
@@ -59,6 +61,9 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 	if len(args) < 1 {
 		chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime <del|mv|incr|decr|set|list> <name> [<value>]")
 	}
+
+	complete := chat.ShowTyping(m.ChannelID)
+	defer complete()
 
 	conn := Redis.Get()
 	defer conn.Close()
@@ -114,7 +119,13 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			episode = clamp(episode, -10, 1000)
 			v, ok := animes[args[1]]
 			if !ok {
-				animes[args[1]] = animeStatus{args[1], episode, time.Now(), "-", "-"}
+				animes[args[1]] = animeStatus{
+					Name:           args[1],
+					CurrentEpisode: episode,
+					LastModified:   time.Now(),
+					EpisodeSource:  "",
+					Subgroup:       "",
+				}
 			} else {
 				v.CurrentEpisode = episode
 				v.LastModified = time.Now()
@@ -146,10 +157,10 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %s (%s)", anime.Name, anime.Subgroup, anime.LastModified.Format("Mon, January 02")))
 			break
 		}
-	case "cr":
+	case "src":
 		{
 			if len(args) != 3 && len(args) != 2 {
-				chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime cr <name> <value>")
+				chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime src <name> <value>")
 				return nil
 			}
 
@@ -160,24 +171,18 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 					break
 				}
 
-				if anime.CrunchyrollCode == "" {
-					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("No crunchyroll data for %s exists", anime.Name))
+				if anime.EpisodeSource == "" {
+					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("No source data for %s exists", anime.Name))
 					break
 				}
 
-				data, err := ParseCrunchyrollString(anime.CrunchyrollCode)
-				if err != nil {
-					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("The crunchydata is wrong? (%s)", anime.CrunchyrollCode))
-					break
-				}
-
-				ep, err := GetBestGuessCrunchyrollLink(data, anime.CurrentEpisode)
+				link, err := GetSourceLink(*anime)
 				if err != nil {
 					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("Couldn't get episode info, %s", err.Error()))
 					break
 				}
 
-				chat.SendMessageToChannel(m.ChannelID, ep.Link)
+				chat.SendMessageToChannel(m.ChannelID, link)
 				break
 			}
 
@@ -188,13 +193,10 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 					break
 				}
 
-				crunchyrollCode := args[2]
-
-				anime.CrunchyrollCode = crunchyrollCode
-				anime.LastModified = time.Now()
+				anime.EpisodeSource = args[2]
 				animes[k] = *anime
 
-				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s -> %s", anime.Name, anime.CrunchyrollCode))
+				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("set %s src=%s", anime.Name, args[2]))
 			}
 
 			break
@@ -229,6 +231,17 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				} else {
 					chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %d (%s)", anime.Name, anime.CurrentEpisode, anime.LastModified.Format("Mon, Jan 02")))
 				}
+
+				if anime.EpisodeSource != "" && args[0] == "incr" {
+					link, err := GetSourceLink(*anime)
+					if err != nil {
+						log.Print(err)
+						chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("Couldn't get episode info :("))
+						break
+					}
+
+					chat.SendMessageToChannel(m.ChannelID, link)
+				}
 			}
 			break
 		}
@@ -246,42 +259,46 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 				}
 			}
 
-			animes := []animeStatus{}
+			sorted := []animeStatus{}
 			for _, v := range animes {
-				animes = append(animes, v)
+				sorted = append(sorted, v)
 			}
 
 			if sortByTime {
-				sort.Slice(animes, func(i, j int) bool {
-					return animes[i].LastModified.Before(animes[j].LastModified)
+				sort.Slice(sorted, func(i, j int) bool {
+					return sorted[i].LastModified.Before(sorted[j].LastModified)
 				})
 			} else {
-				sort.Slice(animes, func(i, j int) bool {
-					return animes[i].Name < animes[j].Name
+				sort.Slice(sorted, func(i, j int) bool {
+					return sorted[i].Name < sorted[j].Name
 				})
 			}
 
 			table := CreateTable(
 				TableHeader{"Title", TableAlignRight},
 				TableHeader{"Episode", TableAlignRight},
-				TableHeader{"Subs?", TableAlignRight},
+				TableHeader{"Source", TableAlignRight},
 				TableHeader{"Last Updated", TableAlignLeft},
 			)
 
-			stringOr := func(v string, def string) string {
-				trimmed := strings.TrimSpace(v)
-				if len(trimmed) == 0 || trimmed == "-" {
-					return def
+			source := func(v string) string {
+				if v == "" {
+					return ""
 				}
 
-				return trimmed
+				u, err := url.Parse(v)
+				if err != nil {
+					return ""
+				}
+
+				return u.Scheme
 			}
 
-			for _, a := range animes {
+			for _, a := range sorted {
 				table.AddRow(
 					strings.TrimSpace(a.Name),
 					fmt.Sprintf("%d", a.CurrentEpisode),
-					stringOr(a.Subgroup, " "),
+					source(a.EpisodeSource),
 					a.LastModified.Format("Mon, Jan 02"),
 				)
 			}

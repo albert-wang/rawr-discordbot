@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os/exec"
 	"strconv"
 )
 
@@ -17,20 +18,23 @@ type CruncyrollData struct {
 	SeasonNumber int64
 }
 
-func ParseCrunchyrollString(cr string) (CruncyrollData, error) {
-	res, err := url.Parse(cr)
-	if err != nil {
-		return CruncyrollData{}, err
+func ParseCrunchyrollURL(source *url.URL) (CruncyrollData, error) {
+	season := source.Query().Get("season")
+	if season == "" {
+		season = "1"
 	}
 
-	season := res.Query().Get("season")
+	if source.Opaque == "" {
+		return CruncyrollData{}, fmt.Errorf("Invalid Opaque")
+	}
+
 	seasonId, err := strconv.ParseInt(season, 10, 64)
 	if err != nil {
 		return CruncyrollData{}, err
 	}
 
 	return CruncyrollData{
-		AnimeID:      res.Path,
+		AnimeID:      source.Opaque,
 		SeasonNumber: seasonId,
 	}, nil
 }
@@ -207,19 +211,17 @@ func getEpisode(season string, targetEpisodeNumber int64, token string) (Crunchy
 }
 
 func GetBestGuessCrunchyrollLink(cr CruncyrollData, episode int64) (CrunchyrollEpisode, error) {
-	token, err := getCRToken()
+	// This is dumb but it works without having to mess with avoiding CF
+	cmd := exec.Command("./cr_episode", cr.AnimeID, fmt.Sprintf("%d", cr.SeasonNumber), fmt.Sprintf("%d", episode))
+	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("Couldn't get CR token: %s", err.Error())
+		err := err.(*exec.ExitError)
+		log.Printf("Couldn't run episode scraper, err=%s stderr=%s", err.Error(), string(err.Stderr))
 		return CrunchyrollEpisode{}, err
 	}
 
-	// Get a season
-	season, err := getSeasonID(cr, token)
-	if err != nil {
-		log.Printf("Couldn't get season info: %s", err.Error())
-		return CrunchyrollEpisode{}, err
-	}
-
-	// Look into the season to grab the episode
-	return getEpisode(season, episode, token)
+	return CrunchyrollEpisode{
+		Link:      string(output),
+		Thumbnail: "",
+	}, nil
 }

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-rod/rod"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/gomodule/redigo/redis"
 	"github.com/mitchellh/goamz/aws"
@@ -74,6 +72,14 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	cmd := args[0]
 	args = args[1:]
 
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "'") && strings.HasSuffix(arg, "'") {
+			args[i] = args[i][1 : len(args[i])-1]
+		} else if strings.HasPrefix(arg, "\"") && strings.HasSuffix(arg, "\"") {
+			args[i] = args[i][1 : len(args[i])-1]
+		}
+	}
+
 	if !strings.HasPrefix(cmd, "!") {
 		return
 	}
@@ -94,11 +100,6 @@ func main() {
 
 	var err error
 	config.LoadConfigFromFileAndENV("./config/config.json")
-
-	browser := rod.New().MustConnect()
-	page := browser.MustPage("https://crunchyroll.com").MustWaitStable()
-
-	page.Eval("() => {}")
 
 	handlers.Redis = &redis.Pool{
 		MaxIdle:     3,
@@ -131,11 +132,9 @@ func main() {
 	mapping["countdown"] = handlers.Countdown
 	mapping["anime"] = handlers.AnimeStatus
 	mapping["rotate"] = handlers.RotateLastImages
-	mapping["junbiOK"] = handlers.JunbiOK
 	mapping["rdy"] = handlers.JunbiOK
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/searchresult", handlers.SearchResults)
 	chat.ConnectToWebsocket(config.BotToken, onMessage)
 
 	log.Printf("Listening on :%s", config.InternalBindPort)

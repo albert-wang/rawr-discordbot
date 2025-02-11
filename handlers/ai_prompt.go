@@ -73,9 +73,16 @@ func GenerateMessagesWithContext(guild string, channel string, contextSize int) 
 	for i := count - 1; i >= 0; i-- {
 		contents, _ := convertMessageToContent(messages[i], fmt.Sprintf("%s > %%s", messages[i].Author.Username))
 		if messages[i].Author.Bot {
+			withoutMedia := []openai.ChatMessagePart{}
+			for _, c := range contents {
+				if c.Type == openai.ChatMessagePartTypeText {
+					withoutMedia = append(withoutMedia, c)
+				}
+			}
+
 			result = append(result, openai.ChatCompletionMessage{
 				Role:         openai.ChatMessageRoleAssistant,
-				MultiContent: contents,
+				MultiContent: withoutMedia,
 			})
 		} else {
 			result = append(result, openai.ChatCompletionMessage{
