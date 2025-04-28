@@ -145,7 +145,6 @@ func ShowTyping(channelID string) func() {
 	ch := make(chan int)
 
 	go func() {
-
 		t := time.Tick(time.Second / 2 * 5)
 		processing := true
 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/url"
@@ -155,6 +156,23 @@ func AnimeStatus(m *discordgo.MessageCreate, args []string) error {
 			animes[k] = *anime
 
 			chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("%s - %s (%s)", anime.Name, anime.Subgroup, anime.LastModified.Format("Mon, January 02")))
+			break
+		}
+	case "inspect":
+		{
+			key, anime := fuzzySearch(args[1], animes)
+			if anime == nil {
+				chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("I don't know anything about %s!", args[1]))
+				break
+			}
+
+			b, err := json.MarshalIndent(anime, "  ", "  ")
+			if err != nil {
+				break
+			}
+
+			msg := fmt.Sprintf("```%s = %s```", key, string(b))
+			chat.SendMessageToChannel(m.ChannelID, msg)
 			break
 		}
 	case "src":

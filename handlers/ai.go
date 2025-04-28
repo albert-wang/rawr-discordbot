@@ -158,10 +158,9 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []open
 			}
 		}
 
-		log.Printf("Using model: %s", model.Name)
-
 		msg, err := MakeOpenAPIRequest(guildID, channelID, model, model.Function, client, &messages)
 		if err != nil {
+			chat.SendMessageToChannel(channelID, "Error while generating message, "+err.Error())
 			log.Print(err)
 			continue
 		}
@@ -170,4 +169,5 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []open
 		stillGenerating = false
 		break
 	}
+	stillGenerating = false
 }
