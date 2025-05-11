@@ -12,10 +12,12 @@ require (
 	github.com/go-rod/rod v0.116.2
 	github.com/gomodule/redigo v1.8.9
 	github.com/mitchellh/goamz v0.0.0-20150317174335-caaaea8b30ee
-	github.com/sashabaranov/go-openai v1.37.0
+	github.com/sashabaranov/go-openai v1.39.1
 )
 
 require (
+	github.com/alexflint/go-arg v1.5.1 // indirect
+	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/motain/gocheck v0.0.0-20131023154940-9beb271d26e6 // indirect

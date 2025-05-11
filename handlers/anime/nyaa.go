@@ -1,4 +1,4 @@
-package handlers
+package anime
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ type NyaaData struct {
 // nyaa://search-string
 func ParseNyaaURL(source *url.URL) (NyaaData, error) {
 	if source.Opaque == "" {
-		return NyaaData{}, fmt.Errorf("No valid nyaa data?")
+		return NyaaData{}, fmt.Errorf("no valid nyaa data?")
 	}
 
 	return NyaaData{
@@ -141,7 +141,7 @@ func GetBestGuessNyaaLink(data NyaaData, episode int64) (string, error) {
 	}
 
 	if len(candidates) == 0 {
-		return "", fmt.Errorf("No candidates in %s", base.String())
+		return "", fmt.Errorf("no candidates in %s", base.String())
 	}
 
 	slices.SortFunc(candidates, func(a nyaaLink, b nyaaLink) int {

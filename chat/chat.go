@@ -3,7 +3,9 @@ package chat
 import (
 	"fmt"
 	"log"
+	"maps"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/albert-wang/tracederror"
@@ -139,28 +141,46 @@ func GetPreviousMessageFromUser(guildID string, channelID string, user string) [
 	return results
 }
 
+var typingStatuses map[string]int = map[string]int{}
+var typingStatusMutex sync.Mutex = sync.Mutex{}
+
+func ShowTypingForever() {
+	ticker := time.NewTicker(time.Second / 2 * 5)
+
+	for _ = range ticker.C {
+
+		typingStatusMutex.Lock()
+		copy := maps.Clone(typingStatuses)
+		typingStatusMutex.Unlock()
+
+		for channel, typing := range copy {
+			if typing > 0 {
+				client.ChannelTyping(channel)
+			}
+		}
+	}
+}
+
 // ShowTyping will display the bot as typing something in
 // the given channel until the returned function is called.
 func ShowTyping(channelID string) func() {
-	ch := make(chan int)
+	typingStatusMutex.Lock()
+	typingStatuses[channelID] = typingStatuses[channelID] + 1
+	typingStatusMutex.Unlock()
 
-	go func() {
-		t := time.Tick(time.Second / 2 * 5)
-		processing := true
-
-		for processing {
-			client.ChannelTyping(channelID)
-			select {
-			case <-t:
-				break
-			case <-ch:
-				processing = false
-				break
-			}
-		}
-	}()
+	client.ChannelTyping(channelID)
 
 	return func() {
-		close(ch)
+		typingStatusMutex.Lock()
+
+		result := typingStatuses[channelID]
+		result -= 1
+		typingStatuses[channelID] = result
+
+		if result <= 0 {
+			delete(typingStatuses, channelID)
+		}
+
+		typingStatusMutex.Unlock()
 	}
 }

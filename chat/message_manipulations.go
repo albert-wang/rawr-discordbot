@@ -1,9 +1,8 @@
-package handlers
+package chat
 
 import (
 	"strings"
 
-	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -16,7 +15,7 @@ func ResolveMentionsToNicks(message string, guild string, mentions []*discordgo.
 				"<@!"+user.ID+">", "",
 			).Replace(message)
 		} else {
-			nick := chat.GetNick(guild, user.ID)
+			nick := GetNick(guild, user.ID)
 			message = strings.NewReplacer(
 				"<@"+user.ID+">", "@"+nick,
 				"<@!"+user.ID+">", "@"+nick,

@@ -1,10 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -16,15 +15,20 @@ import (
 	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/albert-wang/rawr-discordbot/config"
 	"github.com/albert-wang/rawr-discordbot/handlers"
+	"github.com/albert-wang/rawr-discordbot/storage"
 )
 
-var mapping map[string]handlers.CommandHandler = map[string]handlers.CommandHandler{}
-var argSplit *regexp.Regexp = regexp.MustCompile("'.+'|\".+\"|\\S+")
+type ChatOnMessage struct {
+	argumentSplitter *regexp.Regexp
+	commands         map[string]handlers.CommandHandler
+	stickers         map[string]handlers.CommandHandler
+	ai               *handlers.AIResponder
+}
 
-func help(m *discordgo.MessageCreate, args []string) error {
+func (c *ChatOnMessage) Help(m *discordgo.MessageCreate, args []string) error {
 	msg := "This is NVG-Tan. A listing of commands follows."
 	res := []string{}
-	for k, _ := range mapping {
+	for k, _ := range c.commands {
 		res = append(res, k)
 	}
 
@@ -34,7 +38,7 @@ func help(m *discordgo.MessageCreate, args []string) error {
 	return nil
 }
 
-func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
+func (c *ChatOnMessage) OnMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if chat.IsBotUser(m.Author) {
 		return
 	}
@@ -48,7 +52,7 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 		if canAI {
-			go handlers.RespondToPrompt(m)
+			go c.ai.Invoke(m, []string{})
 			return
 		}
 	}
@@ -58,13 +62,15 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if len(m.StickerItems) != 0 {
-		if m.StickerItems[0].Name == "landscape" {
-			go handlers.RotateLastImages(m, []string{"-90"})
+		cmd := m.StickerItems[0].Name
+		handler, ok := c.stickers[cmd]
+		if ok {
+			go handler(m, []string{})
 			return
 		}
 	}
 
-	args := argSplit.FindAllString(m.Content, -1)
+	args := c.argumentSplitter.FindAllString(m.Content, -1)
 	if len(args) == 0 {
 		return
 	}
@@ -84,7 +90,13 @@ func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	handler, ok := mapping[cmd[1:]]
+	unprefixedCommand := cmd[1:]
+	if unprefixedCommand == "help" {
+		go c.Help(m, args)
+		return
+	}
+
+	handler, ok := c.commands[unprefixedCommand]
 	if ok {
 		go func() {
 			err := handler(m, args)
@@ -101,7 +113,7 @@ func main() {
 	var err error
 	config.LoadConfigFromFileAndENV("./config/config.json")
 
-	handlers.Redis = &redis.Pool{
+	storage.Redis = &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
@@ -123,24 +135,32 @@ func main() {
 		log.Fatal(err)
 	}
 
-	handlers.S3Client = s3.New(auth, aws.USEast)
+	storage.S3Client = s3.New(auth, aws.USEast)
 
-	// Begin setting up the handlers here
-	mapping["help"] = help
-	mapping["smug"] = handlers.RandomS3FileFrom("img.rawr.moe", "smug/")
-	mapping["kajiura"] = handlers.RandomS3FileFrom("img.rawr.moe", "music/")
-	mapping["countdown"] = handlers.Countdown
-	mapping["anime"] = handlers.AnimeStatus
-	mapping["rotate"] = handlers.RotateLastImages
-	mapping["rdy"] = handlers.JunbiOK
-
-	mux := http.NewServeMux()
-	chat.ConnectToWebsocket(config.BotToken, onMessage)
-
-	log.Printf("Listening on :%s", config.InternalBindPort)
-
-	err = http.ListenAndServe(fmt.Sprintf(":%s", config.InternalBindPort), mux)
-	if err != nil {
-		log.Print(err)
+	h := ChatOnMessage{
+		argumentSplitter: regexp.MustCompile("'.+'|\".+\"|\\S+"),
+		commands: map[string]handlers.CommandHandler{
+			"smug":      handlers.RandomS3FileFrom("img.rawr.moe", "smug/"),
+			"kajiura":   handlers.RandomS3FileFrom("img.rawr.moe", "music/"),
+			"countdown": handlers.Countdown,
+			"anime":     handlers.Anime,
+			"rotate":    handlers.RotateLastImages,
+		},
+		stickers: map[string]handlers.CommandHandler{
+			"landscape": func(m *discordgo.MessageCreate, args []string) error {
+				return handlers.RotateLastImages(m, []string{"-90"})
+			},
+		},
+		ai: &handlers.AIResponder{},
 	}
+
+	chat.ConnectToWebsocket(config.BotToken, func(s *discordgo.Session, m *discordgo.MessageCreate) {
+		h.OnMessage(s, m)
+	})
+
+	log.Print("Listening and running...")
+
+	go chat.ShowTypingForever()
+
+	runtime.Goexit()
 }

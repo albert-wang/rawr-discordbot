@@ -1,12 +1,14 @@
-package handlers
+package ai
 
 import (
+	"bytes"
 	"fmt"
-	"strings"
+	"log"
+	"os"
+	"text/template"
 	"time"
 
 	"github.com/albert-wang/rawr-discordbot/chat"
-	"github.com/gomodule/redigo/redis"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -32,36 +34,52 @@ func getCurrentTimePromptFragment() string {
 	return today
 }
 
-func getRedisPromptFragment() string {
-	conn := Redis.Get()
-	defer conn.Close()
-
-	redisPrompt, err := redis.String(conn.Do("GET", "chat_gpt_prompt"))
+func templateFragment(path string) (string, error) {
+	prefix, err := os.ReadFile(path)
 	if err != nil {
-		return defaultPrompt
+		log.Print(err)
+		return "", err
 	}
 
-	if redisPrompt == "" {
-		return defaultPrompt
+	now := time.Now()
+	where, err := time.LoadLocation("America/Chicago")
+	today := fmt.Sprintf("Respond as if it is %s", now.Format("Monday, Jan 02 2006 15:04:05"))
+	if err == nil {
+		today = fmt.Sprintf("Respond as if it is %s", now.In(where).Format("Monday, Jan 02 2006 15:04:05"))
 	}
 
-	return redisPrompt
+	tpl := template.New("prefix")
+	tpl.Parse(string(prefix))
+
+	buffer := bytes.Buffer{}
+	err = tpl.Execute(&buffer, map[string]any{
+		"Now": today,
+	})
+
+	if err != nil {
+		log.Print(err)
+
+		return "", err
+	}
+
+	return buffer.String(), nil
 }
 
 func GetPrompt() string {
-	parts := []string{
-		getCurrentTimePromptFragment(),
-		getRedisPromptFragment(),
+	prompt, err := templateFragment("./config/prompt.tpl")
+	if err != nil {
+		log.Printf("err: %+v", err)
+		return fmt.Sprintf(`%s\n\n%s`, getCurrentTimePromptFragment(), defaultPrompt)
 	}
 
-	return strings.Join(parts, "\n\n")
+	return prompt
 }
 
-func GenerateMessagesWithContext(guild string, channel string, contextSize int) []openai.ChatCompletionMessage {
+func GetContextInChannel(guild string, channel string, contextSize int) []openai.ChatCompletionMessage {
 	result := []openai.ChatCompletionMessage{}
 	result = append(result, openai.ChatCompletionMessage{
 		Role:         "developer",
-		MultiContent: textContent(GetPrompt()),
+		MultiContent: TextContent(GetPrompt()),
 	})
 
 	messages := chat.GetPreviousMessageFromUser(guild, channel, "")
@@ -71,7 +89,11 @@ func GenerateMessagesWithContext(guild string, channel string, contextSize int) 
 	}
 
 	for i := count - 1; i >= 0; i-- {
-		contents, _ := convertMessageToContent(messages[i], fmt.Sprintf("%s > %%s", messages[i].Author.Username))
+		contents := MessageContent(messages[i], ConversionOptions{
+			Format:       fmt.Sprintf("%s > %%s", messages[i].Author.Username),
+			IncludeMedia: true,
+		})
+
 		if messages[i].Author.Bot {
 			withoutMedia := []openai.ChatMessagePart{}
 			for _, c := range contents {

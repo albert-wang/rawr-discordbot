@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -34,38 +35,29 @@ func RotateLastImages(m *discordgo.MessageCreate, args []string) error {
 
 	files := []*discordgo.File{}
 
-	for _, attach := range attachments {
-		if !AttachmentIsImage(attach) {
-			continue
-		}
-
-		bytes, err := DownloadAttachment(attach.URL)
+	chat.ForeachImageAttachment(attachments, func(attach *discordgo.MessageAttachment, img []byte) error {
+		out, err := chat.ConvertImage(img, chat.AttachmentExtension(attach), "-rotate", amount)
 		if err != nil {
 			log.Print(err)
-			continue
-		}
-
-		out, err := ConvertImage(bytes, AttachmentExtension(attach), "-rotate", amount)
-		if err != nil {
-			log.Print(err)
-			continue
+			return err
 		}
 
 		defer os.Remove(out)
 
-		output, err := os.Open(out)
+		convertedBytes, err := os.ReadFile(out)
 		if err != nil {
 			log.Print(err)
-			continue
+			return err
 		}
 
-		defer output.Close()
 		files = append(files, &discordgo.File{
 			Name:        attach.Filename,
 			ContentType: attach.ContentType,
-			Reader:      output,
+			Reader:      bytes.NewBuffer(convertedBytes),
 		})
-	}
+
+		return nil
+	})
 
 	chat.SendImagesToChannel(m.ChannelID, files)
 	return nil

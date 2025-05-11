@@ -1,4 +1,4 @@
-package handlers
+package storage
 
 import (
 	"crypto/rand"
@@ -8,12 +8,9 @@ import (
 	"io"
 	"log"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/gomodule/redigo/redis"
 	"github.com/mitchellh/goamz/s3"
 )
-
-type CommandHandler func(*discordgo.MessageCreate, []string) error
 
 var Redis *redis.Pool
 var S3Client *s3.S3
@@ -29,11 +26,11 @@ func RandomKey(chars int) string {
 	return base64.URLEncoding.EncodeToString(bytes)
 }
 
-func makeKey(f string, args ...interface{}) string {
+func MakeKey(f string, args ...interface{}) string {
 	return fmt.Sprintf("rawr-discordbot.%s", fmt.Sprintf(f, args...))
 }
 
-func deserialize(conn redis.Conn, key string, out interface{}) error {
+func Deserialize(conn redis.Conn, key string, out interface{}) error {
 	bytes, err := redis.Bytes(conn.Do("GET", key))
 	if err != nil {
 		log.Print(err)
@@ -47,8 +44,7 @@ func deserialize(conn redis.Conn, key string, out interface{}) error {
 	return json.Unmarshal(bytes, out)
 }
 
-func serialize(conn redis.Conn, key string, in interface{}) error {
-	log.Print("Serializing ", in)
+func Serialize(conn redis.Conn, key string, in interface{}) error {
 	bytes, err := json.Marshal(in)
 	if err != nil {
 		log.Print(err)
@@ -63,7 +59,7 @@ func serialize(conn redis.Conn, key string, in interface{}) error {
 	return err
 }
 
-func cached(key string, timeout int, out interface{}, gen func() (interface{}, error)) error {
+func Cached(key string, timeout int, out interface{}, gen func() (interface{}, error)) error {
 	conn := Redis.Get()
 	defer conn.Close()
 

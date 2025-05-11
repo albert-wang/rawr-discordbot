@@ -7,20 +7,21 @@ import (
 	"strings"
 
 	"github.com/albert-wang/rawr-discordbot/chat"
+	"github.com/albert-wang/rawr-discordbot/storage"
 	"github.com/bwmarrin/discordgo"
 )
 
 // RandomS3FileFrom links a random file from a bucket with the given prefix.
 func RandomS3FileFrom(bucket string, prefix string) CommandHandler {
 	return func(m *discordgo.MessageCreate, args []string) error {
-		conn := Redis.Get()
+		conn := storage.Redis.Get()
 		defer conn.Close()
 
-		key := makeKey("s3rand:%s%s", bucket, prefix)
+		key := storage.MakeKey("s3rand:%s%s", bucket, prefix)
 		contents := []string{}
 
-		err := cached(key, 60*60*24, &contents, func() (interface{}, error) {
-			bucket := S3Client.Bucket(bucket)
+		err := storage.Cached(key, 60*60*24, &contents, func() (interface{}, error) {
+			bucket := storage.S3Client.Bucket(bucket)
 			resp, err := bucket.List(prefix, "/", "", 1000)
 			if err != nil {
 				return nil, err

@@ -1,4 +1,4 @@
-package handlers
+package ai
 
 type AIModel struct {
 	Name string
@@ -10,10 +10,4 @@ type AIModel struct {
 	Function bool
 }
 
-var models = []AIModel{
-	GetVisionModel(),
-}
-
-func GetVisionModel() AIModel {
-	return AIModel{"gpt-4o", true, true}
-}
+var PrimaryModel = AIModel{"gpt-4o", true, true}

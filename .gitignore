@@ -1,2 +1,9 @@
 rawr-discordbot
 config.json
+
+avatar
+cr_episode
+*.sh
+
+prompt
+testing_prompt

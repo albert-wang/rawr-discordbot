@@ -1,173 +1,51 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
-	"log"
-	"strings"
 	"time"
 
+	"github.com/albert-wang/rawr-discordbot/ai"
+	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/bwmarrin/discordgo"
 	openai "github.com/sashabaranov/go-openai"
-
-	"github.com/albert-wang/rawr-discordbot/chat"
-	"github.com/albert-wang/rawr-discordbot/config"
 )
 
-var lastRequest time.Time = time.Unix(0, 0)
-var stillGenerating = false
+type AIResponder struct {
+	lastRequest     time.Time
+	stillGenerating bool
+}
 
-func RespondToPrompt(m *discordgo.MessageCreate) {
-	if stillGenerating {
-		chat.SendMessageToChannel(m.ChannelID, "Let me cook!")
-		return
+func (a *AIResponder) Invoke(m *discordgo.MessageCreate, args []string) error {
+	if a.stillGenerating {
+		chat.SendMessageToChannel(m.ChannelID, "I..its not like I'm still working for you or anything!")
+		return nil
 	}
 
-	if time.Since(lastRequest) < time.Second*10 {
+	if time.Since(a.lastRequest) < time.Second*10 {
 		chat.SendMessageToChannel(m.ChannelID, "Don't ask me too many questions!")
-		return
+		return nil
 	}
 
 	complete := chat.ShowTyping(m.ChannelID)
 	defer complete()
 
-	messages := GenerateMessagesWithContext(m.GuildID, m.ChannelID, 32)
+	messages := ai.GetContextInChannel(m.GuildID, m.ChannelID, 32)
 
-	content, _ := convertMessageToContent(m.Message, "%s")
+	content := ai.MessageContent(m.Message, ai.ConversionOptions{
+		Format:       "%s",
+		IncludeMedia: true,
+	})
+
 	messages = append(messages, openai.ChatCompletionMessage{
 		Role:         openai.ChatMessageRoleUser,
 		MultiContent: content,
 	})
 
-	UnboundedRespondToContent(m.GuildID, m.ChannelID, messages, true)
-}
+	a.lastRequest = time.Now()
+	a.stillGenerating = true
 
-func invokeFunction(guild string, channel string, name string, args string) ([]openai.ChatMessagePart, bool) {
-	log.Print("Invoking function ", name, " with args ", args)
+	ai.UnboundedRespondToContent(m.GuildID, m.ChannelID, messages)
 
-	if name == "get_previous_n_messages_from_user" {
-		arg := GetPreviousNMessagesFromUserArgs{}
-		err := json.Unmarshal([]byte(args), &arg)
-		if err != nil {
-			log.Print(err)
-			return []openai.ChatMessagePart{}, false
-		}
+	a.stillGenerating = false
 
-		return GetPreviousNMessagesFromUser(guild, channel, arg)
-	}
-
-	if name == "get_last_image" {
-		arg := GetLastImageArgs{}
-		err := json.Unmarshal([]byte(args), &arg)
-		if err != nil {
-			log.Print(err)
-			return []openai.ChatMessagePart{}, false
-		}
-
-		return GetLastImage(guild, channel, arg)
-	}
-
-	return []openai.ChatMessagePart{}, false
-}
-
-func MakeOpenAPIRequest(guild string, channel string, model AIModel, supportsFunctions bool, client *openai.Client, messages *[]openai.ChatCompletionMessage) (string, error) {
-	req := openai.ChatCompletionRequest{
-		Model:     model.Name,
-		MaxTokens: 780,
-		Messages:  *messages,
-	}
-
-	if supportsFunctions {
-		req.Functions = SupportedFunctions()
-	}
-
-	resp, err := client.CreateChatCompletion(
-		context.Background(),
-		req,
-	)
-
-	if err != nil {
-		log.Print(err)
-
-		dbgreq, _ := json.MarshalIndent(req, "", "  ")
-		log.Print(string(dbgreq))
-
-		dbg, _ := json.MarshalIndent(resp, "", "  ")
-		log.Print(string(dbg))
-
-		return "", err
-	}
-
-	if len(resp.Choices) == 0 {
-		return "Empty response :(", nil
-	}
-
-	choice := resp.Choices[0]
-
-	if choice.Message.FunctionCall != nil {
-		fn, _ := json.Marshal(choice.Message.FunctionCall)
-		*messages = append(*messages, openai.ChatCompletionMessage{
-			Role: openai.ChatMessageRoleAssistant,
-			MultiContent: []openai.ChatMessagePart{{
-				Type: "text",
-				Text: string(fn),
-			}},
-		})
-
-		additionalContext, _ := invokeFunction(guild, channel, choice.Message.FunctionCall.Name, choice.Message.FunctionCall.Arguments)
-		if len(additionalContext) > 0 {
-			*messages = append(*messages, openai.ChatCompletionMessage{
-				Role:         openai.ChatMessageRoleUser,
-				Name:         choice.Message.FunctionCall.Name,
-				MultiContent: additionalContext,
-			})
-		}
-
-		visionModel := GetVisionModel()
-		return MakeOpenAPIRequest(guild, channel, visionModel, false, client, messages)
-	}
-
-	dbgreq, _ := json.MarshalIndent(req, "", "  ")
-	log.Print(string(dbgreq))
-
-	dbg, _ := json.MarshalIndent(resp, "", "  ")
-	log.Print(string(dbg))
-
-	msg := strings.Trim(choice.Message.Content, `"`)
-	msg = strings.TrimSpace(msg)
-	msg = strings.Trim(msg, `"`)
-
-	msg = strings.TrimPrefix(msg, "NVG-Tan >")
-
-	msg = strings.TrimSpace(msg)
-	msg = strings.Trim(msg, `"`)
-
-	return msg, nil
-}
-
-func UnboundedRespondToContent(guildID string, channelID string, messages []openai.ChatCompletionMessage, needsVision bool) {
-	lastRequest = time.Now()
-
-	stillGenerating = true
-	client := openai.NewClient(config.CPTKey)
-
-	for _, model := range models {
-		if needsVision {
-			if !model.Vision {
-				continue
-			}
-		}
-
-		msg, err := MakeOpenAPIRequest(guildID, channelID, model, model.Function, client, &messages)
-		if err != nil {
-			chat.SendMessageToChannel(channelID, "Error while generating message, "+err.Error())
-			log.Print(err)
-			continue
-		}
-
-		chat.SendMessageToChannel(channelID, msg)
-		stillGenerating = false
-		break
-	}
-	stillGenerating = false
+	return nil
 }
