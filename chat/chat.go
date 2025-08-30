@@ -147,8 +147,7 @@ var typingStatusMutex sync.Mutex = sync.Mutex{}
 func ShowTypingForever() {
 	ticker := time.NewTicker(time.Second / 2 * 5)
 
-	for _ = range ticker.C {
-
+	for range ticker.C {
 		typingStatusMutex.Lock()
 		copy := maps.Clone(typingStatuses)
 		typingStatusMutex.Unlock()

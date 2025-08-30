@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"text/template"
 	"time"
 
@@ -88,25 +89,35 @@ func GetContextInChannel(guild string, channel string, contextSize int) []openai
 		count = contextSize
 	}
 
-	for i := count - 1; i >= 0; i-- {
-		contents := MessageContent(messages[i], ConversionOptions{
-			Format:       fmt.Sprintf("%s > %%s", messages[i].Author.Username),
-			IncludeMedia: true,
-		})
+	imagesSent := 0
+	for i := 0; i < count; i++ {
+		hasMedia := imagesSent < 2
+		if messages[i].Author.Bot {
+			hasMedia = false
+		}
 
 		if messages[i].Author.Bot {
-			withoutMedia := []openai.ChatMessagePart{}
-			for _, c := range contents {
-				if c.Type == openai.ChatMessagePartTypeText {
-					withoutMedia = append(withoutMedia, c)
-				}
-			}
+			contents := MessageContent(messages[i], ConversionOptions{
+				Format:       fmt.Sprintf("%s > %%s", messages[i].Author.Username),
+				IncludeMedia: false,
+			})
 
 			result = append(result, openai.ChatCompletionMessage{
 				Role:         openai.ChatMessageRoleAssistant,
-				MultiContent: withoutMedia,
+				MultiContent: contents,
 			})
 		} else {
+			contents := MessageContent(messages[i], ConversionOptions{
+				Format:       fmt.Sprintf("%s > %%s", messages[i].Author.Username),
+				IncludeMedia: hasMedia && true,
+			})
+
+			for _, v := range contents {
+				if v.Type != openai.ChatMessagePartTypeText {
+					imagesSent++
+				}
+			}
+
 			result = append(result, openai.ChatCompletionMessage{
 				Role:         openai.ChatMessageRoleUser,
 				MultiContent: contents,
@@ -114,5 +125,6 @@ func GetContextInChannel(guild string, channel string, contextSize int) []openai
 		}
 	}
 
+	slices.Reverse(result)
 	return result
 }

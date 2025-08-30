@@ -57,7 +57,8 @@ func (c *ChatOnMessage) OnMessage(s *discordgo.Session, m *discordgo.MessageCrea
 		}
 	}
 
-	if len(m.Attachments) != 0 {
+	if len(m.Attachments) != 0 || len(m.Embeds) != 0 {
+		log.Print("Assigning attachment...")
 		handlers.RegisterAttachmentFromMessage(m)
 	}
 

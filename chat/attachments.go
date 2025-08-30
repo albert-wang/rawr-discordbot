@@ -1,13 +1,19 @@
 package chat
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"os"
 	"path"
 	"strings"
+
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -34,6 +40,32 @@ func ForeachImageAttachment(attachments []*discordgo.MessageAttachment, cb func(
 		}
 
 		err = cb(attachment, b)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+	}
+}
+
+func ForeachImageEmbed(embeds []*discordgo.MessageEmbed, cb func(embed *discordgo.MessageEmbed, ext string, img []byte) error) {
+	for _, embed := range embeds {
+		if embed.Type != discordgo.EmbedTypeImage {
+			continue
+		}
+
+		b, err := GetURLBytes(embed.URL)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		_, format, err := image.DecodeConfig(bytes.NewReader(b))
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		err = cb(embed, format, b)
 		if err != nil {
 			log.Print(err)
 			continue

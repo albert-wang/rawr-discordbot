@@ -28,7 +28,7 @@ func MessageContent(message *discordgo.Message, opts ConversionOptions) []openai
 
 		result = append(result, openai.ChatMessagePart{
 			Type: "text",
-			Text: fmt.Sprintf(opts.Format, content),
+			Text: strings.TrimSpace(fmt.Sprintf(opts.Format, content)),
 		})
 	}
 
@@ -42,6 +42,22 @@ func MessageContent(message *discordgo.Message, opts ConversionOptions) []openai
 			attachments := AttachmentsContent(message)
 			result = append(result, attachments...)
 		}
+
+		if len(message.StickerItems) > 0 {
+			for _, sticker := range message.StickerItems {
+				result = append(result, openai.ChatMessagePart{
+					Type: "text",
+					Text: strings.TrimSpace(fmt.Sprintf(opts.Format, sticker.Name)),
+				})
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		result = append(result, openai.ChatMessagePart{
+			Type: "text",
+			Text: "<system>no content here</system>",
+		})
 	}
 
 	return result

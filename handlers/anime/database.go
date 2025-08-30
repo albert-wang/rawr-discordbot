@@ -51,6 +51,11 @@ func (a *Database) Save() {
 	conn := storage.Redis.Get()
 	defer conn.Close()
 
+	_, ok := a.animes[""]
+	if ok {
+		delete(a.animes, "")
+	}
+
 	key := storage.MakeKey("animestatus")
 	err := storage.Serialize(conn, key, &a.animes)
 	if err != nil {

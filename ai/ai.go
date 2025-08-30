@@ -100,12 +100,6 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 		return makeOpenAPIRequest(guild, channel, PrimaryModel, recursiveDepth-1, client, messages)
 	}
 
-	dbgreq, _ := json.MarshalIndent(req, "", "  ")
-	log.Print(string(dbgreq))
-
-	dbg, _ := json.MarshalIndent(resp, "", "  ")
-	log.Print(string(dbg))
-
 	msg := strings.Trim(choice.Message.Content, `"`)
 	msg = strings.TrimSpace(msg)
 	msg = strings.Trim(msg, `"`)

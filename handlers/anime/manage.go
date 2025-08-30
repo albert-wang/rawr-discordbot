@@ -66,7 +66,7 @@ func (db *Database) Set(msg *discordgo.MessageCreate, args *SetArguments) (strin
 			Subgroup:       "",
 		}
 
-		db.animes[name] = *target
+		db.animes[args.Anime] = *target
 	} else {
 		target.CurrentEpisode = int64(args.Episode)
 		target.LastModified = time.Now()
@@ -137,9 +137,10 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 }
 
 type IncrDecrArguments struct {
-	Anime    string `arg:"positional"`
-	Delta    int    `arg:"positional" default:"1"`
-	NoSource bool   `arg:"-q,--quiet"`
+	Anime        string `arg:"positional"`
+	Delta        int    `arg:"positional" default:"1"`
+	NoSource     bool   `arg:"-q,--quiet"`
+	NoUpdateTime bool   `arg:"-t,--time-stop"`
 }
 
 func (db *Database) Incr(msg *discordgo.MessageCreate, args *IncrDecrArguments) (string, error) {
@@ -149,6 +150,7 @@ func (db *Database) Incr(msg *discordgo.MessageCreate, args *IncrDecrArguments) 
 	}
 
 	anime.CurrentEpisode += int64(args.Delta)
+	anime.LastModified = time.Now()
 	db.animes[name] = *anime
 
 	chat.SendMessageToChannel(msg.ChannelID, anime.Short())
@@ -172,6 +174,7 @@ func (db *Database) Decr(msg *discordgo.MessageCreate, args *IncrDecrArguments) 
 	}
 
 	anime.CurrentEpisode -= int64(args.Delta)
+	anime.LastModified = time.Now()
 	db.animes[name] = *anime
 
 	chat.SendMessageToChannel(msg.ChannelID, anime.Short())
