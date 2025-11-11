@@ -10,4 +10,4 @@ type AIModel struct {
 	Function bool
 }
 
-var PrimaryModel = AIModel{"gpt-4o", true, true}
+var PrimaryModel = AIModel{"gpt-5-mini", true, true}

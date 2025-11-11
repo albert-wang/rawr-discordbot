@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math"
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -15,7 +16,8 @@ import (
 func invokeFunction(guild string, channel string, name string, args string) []openai.ChatMessagePart {
 	log.Print("Invoking function ", name, " with args ", args)
 
-	if name == "get_previous_n_messages_from_user" {
+	switch name {
+	case "get_previous_n_messages_from_user":
 		arg := GetPreviousNMessagesFromUserArgs{}
 		err := json.Unmarshal([]byte(args), &arg)
 		if err != nil {
@@ -24,9 +26,7 @@ func invokeFunction(guild string, channel string, name string, args string) []op
 		}
 
 		return GetPreviousNMessagesFromUser(guild, channel, arg)
-	}
-
-	if name == "get_last_image" {
+	case "get_last_image":
 		arg := GetLastImageArgs{}
 		err := json.Unmarshal([]byte(args), &arg)
 		if err != nil {
@@ -35,6 +35,24 @@ func invokeFunction(guild string, channel string, name string, args string) []op
 		}
 
 		return GetLastImage(guild, channel, arg)
+	case "get_anime_information":
+		arg := GetAnimeInformationArgs{}
+		err := json.Unmarshal([]byte(args), &arg)
+		if err != nil {
+			log.Print(err)
+			return []openai.ChatMessagePart{}
+		}
+
+		return GetAnimeInformation(guild, channel, arg)
+	case "get_anime_details":
+		arg := GetAnimeDetailsArgs{}
+		err := json.Unmarshal([]byte(args), &arg)
+		if err != nil {
+			log.Print(err)
+			return []openai.ChatMessagePart{}
+		}
+
+		return GetAnimeDetails(guild, channel, arg)
 	}
 
 	return []openai.ChatMessagePart{}
@@ -43,7 +61,7 @@ func invokeFunction(guild string, channel string, name string, args string) []op
 func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDepth int, client *openai.Client, messages *[]openai.ChatCompletionMessage) (string, error) {
 	req := openai.ChatCompletionRequest{
 		Model:               model.Name,
-		MaxCompletionTokens: 780,
+		MaxCompletionTokens: 1024 * 4,
 		Messages:            *messages,
 	}
 
@@ -93,7 +111,6 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 					MultiContent: additionalContext,
 				})
 			}
-
 		}
 
 		// Recursive call with function call results.
@@ -112,6 +129,30 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 	return msg, nil
 }
 
+func splitMessage(msg string) []string {
+	lines := strings.Split(msg, "\n")
+
+	targetLength := len(msg)
+	if len(msg) > 4000 {
+		messagesCount := math.Ceil(float64(len(msg)) / 4000)
+		targetLength = int(4000 / messagesCount)
+	}
+
+	currentLine := ""
+	result := []string{}
+	for _, line := range lines {
+		if len(line)+len(currentLine) > targetLength {
+			result = append(result, currentLine)
+			currentLine = ""
+		}
+
+		currentLine += line + "\n"
+	}
+
+	result = append(result, currentLine)
+	return result
+}
+
 func UnboundedRespondToContent(guildID string, channelID string, messages []openai.ChatCompletionMessage) {
 	client := openai.NewClient(config.CPTKey)
 
@@ -122,6 +163,8 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []open
 		return
 	}
 
-	chat.SendMessageToChannel(channelID, msg)
-
+	splitMessages := splitMessage(msg)
+	for _, msg := range splitMessages {
+		chat.SendMessageToChannel(channelID, msg)
+	}
 }
