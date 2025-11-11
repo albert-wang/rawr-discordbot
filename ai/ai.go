@@ -133,9 +133,9 @@ func splitMessage(msg string) []string {
 	lines := strings.Split(msg, "\n")
 
 	targetLength := len(msg)
-	if len(msg) > 4000 {
-		messagesCount := math.Ceil(float64(len(msg)) / 4000)
-		targetLength = int(4000 / messagesCount)
+	if len(msg) > 1800 {
+		messagesCount := math.Ceil(float64(len(msg)) / 1800)
+		targetLength = int(1800 / messagesCount)
 	}
 
 	currentLine := ""
