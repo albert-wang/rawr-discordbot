@@ -69,7 +69,10 @@ func genericHandle[T any](db *Database, m *discordgo.MessageCreate, args []strin
 	}
 
 	if resp != "" {
-		chat.SendMessageToChannel(m.ChannelID, resp)
+		messages := chat.SplitMessage(resp)
+		for _, message := range messages {
+			chat.SendMessageToChannel(m.ChannelID, message)
+		}
 	}
 
 	return nil

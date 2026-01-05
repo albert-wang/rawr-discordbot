@@ -120,9 +120,9 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 	}
 
 	table := chat.CreateTable(
-		chat.TableHeader{"Title", chat.TableAlignRight},
-		chat.TableHeader{"Episode", chat.TableAlignRight},
-		chat.TableHeader{"Last Updated", chat.TableAlignLeft},
+		chat.TableHeader{Title: "Title", Align: chat.TableAlignRight},
+		chat.TableHeader{Title: "Episode", Align: chat.TableAlignRight},
+		chat.TableHeader{Title: "Last Updated", Align: chat.TableAlignLeft},
 	)
 
 	for _, a := range sorted {

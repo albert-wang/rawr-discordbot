@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"math"
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -129,30 +128,6 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 	return msg, nil
 }
 
-func splitMessage(msg string) []string {
-	lines := strings.Split(msg, "\n")
-
-	targetLength := len(msg)
-	if len(msg) > 1800 {
-		messagesCount := math.Ceil(float64(len(msg)) / 1800)
-		targetLength = int(1800 / messagesCount)
-	}
-
-	currentLine := ""
-	result := []string{}
-	for _, line := range lines {
-		if len(line)+len(currentLine) > targetLength {
-			result = append(result, currentLine)
-			currentLine = ""
-		}
-
-		currentLine += line + "\n"
-	}
-
-	result = append(result, currentLine)
-	return result
-}
-
 func UnboundedRespondToContent(guildID string, channelID string, messages []openai.ChatCompletionMessage) {
 	client := openai.NewClient(config.CPTKey)
 
@@ -163,7 +138,7 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []open
 		return
 	}
 
-	splitMessages := splitMessage(msg)
+	splitMessages := chat.SplitMessage(msg)
 	for _, msg := range splitMessages {
 		chat.SendMessageToChannel(channelID, msg)
 	}

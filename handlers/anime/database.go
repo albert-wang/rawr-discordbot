@@ -77,12 +77,10 @@ func (db *Database) Handle(cmd string, m *discordgo.MessageCreate, args []string
 		return genericHandle(db, m, args, (*Database).Incr)
 	case "decr":
 		return genericHandle(db, m, args, (*Database).Decr)
-
 	case "inspect":
 		return genericHandle(db, m, args, (*Database).Inspect)
 	case "src":
 		return genericHandle(db, m, args, (*Database).Src)
-
 	case "suggest":
 		return genericHandle(db, m, args, (*Database).Suggest)
 	default:
