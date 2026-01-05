@@ -46,6 +46,5 @@ func (a *AIResponder) Invoke(m *discordgo.MessageCreate, args []string) error {
 	ai.UnboundedRespondToContent(m.GuildID, m.ChannelID, messages)
 
 	a.stillGenerating = false
-
 	return nil
 }

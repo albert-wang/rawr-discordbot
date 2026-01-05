@@ -59,6 +59,10 @@ func GetChannelInformation(channelID string) (*discordgo.Channel, error) {
 
 // SendMessageToChannel sends a message to a channelID.
 func SendMessageToChannel(channelID string, message string) {
+	if strings.TrimSpace(message) == "" {
+		return
+	}
+
 	_, err := client.ChannelMessageSend(channelID, message)
 	if err != nil {
 		log.Print("==============ERROR==============")
