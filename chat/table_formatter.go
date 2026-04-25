@@ -88,34 +88,43 @@ func (tbl *Table) Render() string {
 	result := ""
 	for i, h := range tbl.Headers {
 		if i > 0 {
-			result += " | "
+			result += " │ "
 		}
 
+		result += "\u001b[1;37m"
 		result += align(h.Align, widths[i], h.Title)
+		result += "\u001b[0m"
 	}
 
 	result += "\n"
 
 	// Emit the line
-	for i, _ := range tbl.Headers {
+	for i := range tbl.Headers {
 		if i > 0 {
-			result += "-+-"
+			result += "─┼─"
 		}
 
-		result += padding(widths[i], "-", 0)
+		result += padding(widths[i], "─", 0)
 	}
 
 	// Emit the values
-	for _, row := range tbl.Rows {
+	for y, row := range tbl.Rows {
 		result += "\n"
 
 		for i, v := range row.Values {
 			if i > 0 {
-				result += " | "
+				result += " │ "
 			}
 
+			if y%4 >= 2 {
+				result += "\u001b[0;30m"
+			}
 			result += align(tbl.Headers[i].Align, widths[i], v)
+			if y%4 >= 2 {
+				result += "\u001b[0m"
+			}
 		}
+
 	}
 
 	return result

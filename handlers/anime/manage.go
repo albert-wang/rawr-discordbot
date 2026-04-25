@@ -133,7 +133,7 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 		)
 	}
 
-	return "```Markdown\n" + table.Render() + "```", nil
+	return "```ansi\n" + table.Render() + "```", nil
 }
 
 type IncrDecrArguments struct {
