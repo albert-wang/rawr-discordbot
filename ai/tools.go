@@ -17,25 +17,14 @@ type Tool struct {
 
 var registry = map[string]Tool{}
 
-func registerTool(t Tool) {
-	if t.Definition.Function == nil {
-		panic("ai: tool registered without a function definition")
-	}
-	name := t.Definition.Function.Name
-	if _, dup := registry[name]; dup {
-		panic("ai: duplicate tool registration: " + name)
-	}
-	registry[name] = t
-}
-
 // DefineTool wires an OpenAI function definition to a typed handler. The
 // generic T is the args struct the handler accepts; JSON unmarshal of the
 // model's argument blob happens here so handlers stay focused on real logic.
 func DefineTool[T any](
 	def openai.FunctionDefinition,
 	fn func(guild, channel string, args T) []openai.ChatMessagePart,
-) Tool {
-	return Tool{
+) {
+	t := Tool{
 		Definition: openai.Tool{
 			Type:     openai.ToolTypeFunction,
 			Function: &def,
@@ -51,6 +40,16 @@ func DefineTool[T any](
 			return fn(guild, channel, args)
 		},
 	}
+
+	if t.Definition.Function == nil {
+		panic("ai: tool registered without a function definition")
+	}
+	name := t.Definition.Function.Name
+	if _, dup := registry[name]; dup {
+		panic("ai: duplicate tool registration: " + name)
+	}
+
+	registry[name] = t
 }
 
 func ToolDefinitions() []openai.Tool {

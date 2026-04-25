@@ -83,6 +83,7 @@ func RotateLastImages(m *discordgo.MessageCreate, args []string) error {
 		return nil
 	})
 
+	complete()
 	chat.SendImagesToChannel(m.ChannelID, files)
 	return nil
 }

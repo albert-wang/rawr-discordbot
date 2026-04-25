@@ -20,7 +20,7 @@ type GetAnimeDetailsArgs struct {
 func init() {
 	type Object = map[string]any
 
-	registerTool(DefineTool[GetAnimeInformationArgs](
+	DefineTool(
 		openai.FunctionDefinition{
 			Name: "get_anime_information",
 			Description: `Gets, given an anime name in english, information about that anime. Sometimes, the anime will have multiple seasons. If there are mulitple seasons, try to
@@ -39,9 +39,9 @@ func init() {
 			},
 		},
 		getAnimeInformation,
-	))
+	)
 
-	registerTool(DefineTool[GetAnimeDetailsArgs](
+	DefineTool(
 		openai.FunctionDefinition{
 			Name: "get_anime_details",
 			Description: `Gets, given an anime id from get_anime_information, detailed information about that anime.
@@ -61,7 +61,7 @@ func init() {
 			},
 		},
 		getAnimeDetails,
-	))
+	)
 }
 
 func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []openai.ChatMessagePart {

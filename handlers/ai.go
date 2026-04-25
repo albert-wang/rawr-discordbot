@@ -31,7 +31,6 @@ func (a *AIResponder) Invoke(m *discordgo.MessageCreate, args []string) error {
 	messages := ai.GetContextInChannel(m.GuildID, m.ChannelID, 32)
 
 	content := ai.MessageContent(m.Message, ai.ConversionOptions{
-		Format:       "%s",
 		IncludeMedia: true,
 	})
 
@@ -43,7 +42,12 @@ func (a *AIResponder) Invoke(m *discordgo.MessageCreate, args []string) error {
 	a.lastRequest = time.Now()
 	a.stillGenerating = true
 
-	ai.UnboundedRespondToContent(m.GuildID, m.ChannelID, messages)
+	splitMessages := ai.UnboundedRespondToContent(m.GuildID, m.ChannelID, messages)
+	complete()
+
+	for _, msg := range splitMessages {
+		chat.SendMessageToChannel(m.ChannelID, msg)
+	}
 
 	a.stillGenerating = false
 	return nil

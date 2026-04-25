@@ -98,7 +98,6 @@ func GetContextInChannel(guild string, channel string, contextSize int) []openai
 
 		if messages[i].Author.Bot {
 			contents := MessageContent(messages[i], ConversionOptions{
-				Format:       fmt.Sprintf("%s > %%s", messages[i].Author.Username),
 				IncludeMedia: false,
 			})
 
@@ -108,7 +107,6 @@ func GetContextInChannel(guild string, channel string, contextSize int) []openai
 			})
 		} else {
 			contents := MessageContent(messages[i], ConversionOptions{
-				Format:       fmt.Sprintf("%s > %%s", messages[i].Author.Username),
 				IncludeMedia: hasMedia && true,
 			})
 

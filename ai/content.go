@@ -15,49 +15,61 @@ import (
 )
 
 type ConversionOptions struct {
-	Format       string
 	IncludeMedia bool
 }
 
 func MessageContent(message *discordgo.Message, opts ConversionOptions) []openai.ChatMessagePart {
-	// Convert text into text content
 	result := []openai.ChatMessagePart{}
 
+	content := ""
 	if strings.TrimSpace(message.Content) != "" {
-		content := chat.ResolveMentionsToNicks(message.Content, message.GuildID, message.Mentions)
-
-		result = append(result, openai.ChatMessagePart{
-			Type: "text",
-			Text: strings.TrimSpace(fmt.Sprintf(opts.Format, content)),
-		})
+		content = chat.ResolveMentionsToNicks(message.Content, message.GuildID, message.Mentions)
 	}
 
+	imageCount := 0
 	if opts.IncludeMedia {
-		if len(message.Embeds) > 0 {
-			embeds := EmbedsContent(message)
-			result = append(result, embeds...)
+		for _, a := range message.Attachments {
+			if chat.AttachmentIsImage(a) {
+				imageCount++
+			}
 		}
 
-		if len(message.Attachments) > 0 {
-			attachments := AttachmentsContent(message)
-			result = append(result, attachments...)
-		}
-
-		if len(message.StickerItems) > 0 {
-			for _, sticker := range message.StickerItems {
-				result = append(result, openai.ChatMessagePart{
-					Type: "text",
-					Text: strings.TrimSpace(fmt.Sprintf(opts.Format, sticker.Name)),
-				})
+		for _, e := range message.Embeds {
+			if e.Thumbnail != nil {
+				imageCount++
 			}
 		}
 	}
 
-	if len(result) == 0 {
-		result = append(result, openai.ChatMessagePart{
-			Type: "text",
-			Text: "<system>no content here</system>",
-		})
+	header := fmt.Sprintf(`<msg message_id="%s" author_name="%s" author_id="%s" image_count="%d">`,
+		message.ID,
+		message.Author.Username,
+		message.Author.ID,
+		imageCount,
+	)
+
+	result = append(result, openai.ChatMessagePart{
+		Type: "text",
+		Text: fmt.Sprintf("%s\n%s\n</msg>", header, strings.TrimSpace(content)),
+	})
+
+	if opts.IncludeMedia {
+		for _, e := range message.Embeds {
+			if strings.TrimSpace(e.Title) == "" && strings.TrimSpace(e.Description) == "" {
+				continue
+			}
+			result = append(result, openai.ChatMessagePart{
+				Type: "text",
+				Text: fmt.Sprintf("<embed>%s %s</embed>", e.Title, e.Description),
+			})
+		}
+
+		for _, sticker := range message.StickerItems {
+			result = append(result, openai.ChatMessagePart{
+				Type: "text",
+				Text: fmt.Sprintf("<sticker>%s</sticker>", sticker.Name),
+			})
+		}
 	}
 
 	return result
@@ -69,7 +81,7 @@ func AttachmentsContent(message *discordgo.Message) []openai.ChatMessagePart {
 	chat.ForeachImageAttachment(message.Attachments, func(attachment *discordgo.MessageAttachment, img []byte) error {
 		out, err := chat.ConvertImage(img, ".jpg",
 			"-resize",
-			"1536x1536>",
+			"2048x2048>",
 		)
 
 		if err != nil {
@@ -113,7 +125,7 @@ func EmbedsContent(message *discordgo.Message) []openai.ChatMessagePart {
 			b, err := chat.GetURLBytes(e.Thumbnail.URL)
 			out, err := chat.ConvertImage(b, ".jpg",
 				"-resize",
-				"1536x1536>",
+				"2048x2048>",
 			)
 
 			if err != nil {

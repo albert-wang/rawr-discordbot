@@ -60,6 +60,7 @@ func GetChannelInformation(channelID string) (*discordgo.Channel, error) {
 // SendMessageToChannel sends a message to a channelID.
 func SendMessageToChannel(channelID string, message string) {
 	if strings.TrimSpace(message) == "" {
+		log.Println("Would have sent an empty message?")
 		return
 	}
 
@@ -104,6 +105,16 @@ func GetNick(guildID string, user string) string {
 	}
 
 	return member.Nick
+}
+
+func GetMessage(guildID string, channelID string, messageID string) *discordgo.Message {
+	message, err := client.ChannelMessage(channelID, messageID)
+	if err != nil {
+		log.Print(err)
+		return nil
+	}
+
+	return message
 }
 
 func GetPreviousMessageFromUser(guildID string, channelID string, user string) []*discordgo.Message {
@@ -173,7 +184,13 @@ func ShowTyping(channelID string) func() {
 
 	client.ChannelTyping(channelID)
 
+	hasBeenCalled := false
 	return func() {
+		if hasBeenCalled {
+			return
+		}
+
+		hasBeenCalled = true
 		typingStatusMutex.Lock()
 
 		result := typingStatuses[channelID]

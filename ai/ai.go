@@ -47,6 +47,16 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 	choice := resp.Choices[0]
 
 	if len(choice.Message.ToolCalls) > 0 {
+		if strings.TrimSpace(choice.Message.Content) != "" {
+			*messages = append(*messages, openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleAssistant,
+				MultiContent: []openai.ChatMessagePart{{
+					Type: "text",
+					Text: choice.Message.Content,
+				}},
+			})
+		}
+
 		for _, call := range choice.Message.ToolCalls {
 			fn, _ := json.Marshal(call.Function)
 			*messages = append(*messages, openai.ChatCompletionMessage{
@@ -83,18 +93,15 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 	return msg, nil
 }
 
-func UnboundedRespondToContent(guildID string, channelID string, messages []openai.ChatCompletionMessage) {
+func UnboundedRespondToContent(guildID string, channelID string, messages []openai.ChatCompletionMessage) []string {
 	client := openai.NewClient(config.CPTKey)
 
 	msg, err := makeOpenAPIRequest(guildID, channelID, PrimaryModel, 3, client, &messages)
 	if err != nil {
 		chat.SendMessageToChannel(channelID, "Error while generating message, "+err.Error())
 		log.Print(err)
-		return
+		return []string{}
 	}
 
-	splitMessages := chat.SplitMessage(msg)
-	for _, msg := range splitMessages {
-		chat.SendMessageToChannel(channelID, msg)
-	}
+	return chat.SplitMessage(msg)
 }

@@ -12,9 +12,6 @@ import (
 type Handler func(database *Database, cmd string, msg *discordgo.MessageCreate, args []string)
 
 func Handle(command string, m *discordgo.MessageCreate, args []string) {
-	complete := chat.ShowTyping(m.ChannelID)
-	defer complete()
-
 	db := LoadDatabase()
 
 	err := db.Handle(command, m, args)
@@ -56,6 +53,9 @@ func parseArguments[T any](m *discordgo.MessageCreate, args []string) (*T, error
 }
 
 func genericHandle[T any](db *Database, m *discordgo.MessageCreate, args []string, cb func(db *Database, m *discordgo.MessageCreate, args *T) (string, error)) error {
+	complete := chat.ShowTyping(m.ChannelID)
+	defer complete()
+
 	typedArgs, err := parseArguments[T](m, args)
 	if err != nil {
 		log.Print(err)
@@ -70,6 +70,8 @@ func genericHandle[T any](db *Database, m *discordgo.MessageCreate, args []strin
 
 	if resp != "" {
 		messages := chat.SplitMessage(resp)
+
+		complete()
 		for _, message := range messages {
 			chat.SendMessageToChannel(m.ChannelID, message)
 		}
