@@ -12,51 +12,6 @@ import (
 	"github.com/albert-wang/rawr-discordbot/config"
 )
 
-func invokeFunction(guild string, channel string, name string, args string) []openai.ChatMessagePart {
-	log.Print("Invoking function ", name, " with args ", args)
-
-	switch name {
-	case "get_previous_n_messages_from_user":
-		arg := GetPreviousNMessagesFromUserArgs{}
-		err := json.Unmarshal([]byte(args), &arg)
-		if err != nil {
-			log.Print(err)
-			return []openai.ChatMessagePart{}
-		}
-
-		return GetPreviousNMessagesFromUser(guild, channel, arg)
-	case "get_last_image":
-		arg := GetLastImageArgs{}
-		err := json.Unmarshal([]byte(args), &arg)
-		if err != nil {
-			log.Print(err)
-			return []openai.ChatMessagePart{}
-		}
-
-		return GetLastImage(guild, channel, arg)
-	case "get_anime_information":
-		arg := GetAnimeInformationArgs{}
-		err := json.Unmarshal([]byte(args), &arg)
-		if err != nil {
-			log.Print(err)
-			return []openai.ChatMessagePart{}
-		}
-
-		return GetAnimeInformation(guild, channel, arg)
-	case "get_anime_details":
-		arg := GetAnimeDetailsArgs{}
-		err := json.Unmarshal([]byte(args), &arg)
-		if err != nil {
-			log.Print(err)
-			return []openai.ChatMessagePart{}
-		}
-
-		return GetAnimeDetails(guild, channel, arg)
-	}
-
-	return []openai.ChatMessagePart{}
-}
-
 func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDepth int, client *openai.Client, messages *[]openai.ChatCompletionMessage) (string, error) {
 	req := openai.ChatCompletionRequest{
 		Model:               model.Name,
@@ -65,7 +20,7 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 	}
 
 	if recursiveDepth > 0 {
-		req.Tools = SupportedFunctions()
+		req.Tools = ToolDefinitions()
 	}
 
 	resp, err := client.CreateChatCompletion(
@@ -102,7 +57,7 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 				}},
 			})
 
-			additionalContext := invokeFunction(guild, channel, call.Function.Name, call.Function.Arguments)
+			additionalContext := InvokeTool(guild, channel, call.Function.Name, call.Function.Arguments)
 			if len(additionalContext) > 0 {
 				*messages = append(*messages, openai.ChatCompletionMessage{
 					Role:         openai.ChatMessageRoleUser,
