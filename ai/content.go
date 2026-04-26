@@ -11,15 +11,19 @@ import (
 
 	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/bwmarrin/discordgo"
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
 )
 
+var RESIZE_OPTIONS = []string{"-resize", "2048x2048>"}
+
 type ConversionOptions struct {
+	// Adds in text descriptions of attachments, embeds, and stickers.
 	IncludeMedia bool
 }
 
-func MessageContent(message *discordgo.Message, opts ConversionOptions) []openai.ChatMessagePart {
-	result := []openai.ChatMessagePart{}
+func MessageContent(message *discordgo.Message, opts ConversionOptions) []responses.ResponseInputContentUnionParam {
+	result := []responses.ResponseInputContentUnionParam{}
 
 	content := ""
 	if strings.TrimSpace(message.Content) != "" {
@@ -41,6 +45,10 @@ func MessageContent(message *discordgo.Message, opts ConversionOptions) []openai
 		}
 	}
 
+	if opts.IncludeMedia == false {
+		imageCount = 0
+	}
+
 	header := fmt.Sprintf(`<msg message_id="%s" author_name="%s" author_id="%s" image_count="%d">`,
 		message.ID,
 		message.Author.Username,
@@ -48,42 +56,44 @@ func MessageContent(message *discordgo.Message, opts ConversionOptions) []openai
 		imageCount,
 	)
 
-	result = append(result, openai.ChatMessagePart{
-		Type: "text",
-		Text: fmt.Sprintf("%s\n%s\n</msg>", header, strings.TrimSpace(content)),
-	})
+	result = append(result,
+		responses.ResponseInputContentParamOfInputText(fmt.Sprintf("%s\n%s\n</msg>", header, strings.TrimSpace(content))))
 
 	if opts.IncludeMedia {
+		chat.ForeachImageAttachment(message.Attachments, func(attachment *discordgo.MessageAttachment, img []byte) error {
+			result = append(result, responses.ResponseInputContentParamOfInputText(
+				fmt.Sprintf(`<attachment filename="%s" height="%d" width="%d" content_type="%s" />`,
+					attachment.Filename,
+					attachment.Height,
+					attachment.Width,
+					attachment.ContentType)))
+
+			return nil
+		})
+
 		for _, e := range message.Embeds {
 			if strings.TrimSpace(e.Title) == "" && strings.TrimSpace(e.Description) == "" {
 				continue
 			}
-			result = append(result, openai.ChatMessagePart{
-				Type: "text",
-				Text: fmt.Sprintf("<embed>%s %s</embed>", e.Title, e.Description),
-			})
+
+			result = append(result, responses.ResponseInputContentParamOfInputText(
+				fmt.Sprintf(`<embed title="%s">%s</embed>`, e.Title, e.Description)))
 		}
 
 		for _, sticker := range message.StickerItems {
-			result = append(result, openai.ChatMessagePart{
-				Type: "text",
-				Text: fmt.Sprintf("<sticker>%s</sticker>", sticker.Name),
-			})
+			result = append(result, responses.ResponseInputContentParamOfInputText(
+				fmt.Sprintf(`<sticker>%s</sticker>`, sticker.Name)))
 		}
 	}
 
 	return result
 }
 
-func AttachmentsContent(message *discordgo.Message) []openai.ChatMessagePart {
-	result := []openai.ChatMessagePart{}
+func AttachmentsContent(message *discordgo.Message) []responses.ResponseInputContentUnionParam {
+	result := []responses.ResponseInputContentUnionParam{}
 
 	chat.ForeachImageAttachment(message.Attachments, func(attachment *discordgo.MessageAttachment, img []byte) error {
-		out, err := chat.ConvertImage(img, ".jpg",
-			"-resize",
-			"2048x2048>",
-		)
-
+		out, err := chat.ConvertImage(img, ".jpg", RESIZE_OPTIONS...)
 		if err != nil {
 			log.Print(err)
 			return err
@@ -98,36 +108,28 @@ func AttachmentsContent(message *discordgo.Message) []openai.ChatMessagePart {
 		}
 
 		bs := base64.StdEncoding.EncodeToString(bytes)
-		result = append(result,
-			openai.ChatMessagePart{
-				Type: "image_url",
-				ImageURL: &openai.ChatMessageImageURL{
-					URL: fmt.Sprintf("data:image/jpeg;base64,%s", bs),
-				},
-			})
+		image := responses.ResponseInputContentParamOfInputImage("original")
+		image.OfInputImage.ImageURL = param.NewOpt(fmt.Sprintf("data:image/jpeg;base64,%s", bs))
 
+		result = append(result, image)
 		return nil
 	})
 
 	return result
 }
 
-func EmbedsContent(message *discordgo.Message) []openai.ChatMessagePart {
-	result := []openai.ChatMessagePart{}
+func EmbedsContent(message *discordgo.Message) []responses.ResponseInputContentUnionParam {
+	result := []responses.ResponseInputContentUnionParam{}
 
 	for _, e := range message.Embeds {
-		result = append(result, openai.ChatMessagePart{
-			Type: "text",
-			Text: fmt.Sprintf("%s %s", e.Title, e.Description),
-		})
-
 		if e.Thumbnail != nil {
 			b, err := chat.GetURLBytes(e.Thumbnail.URL)
-			out, err := chat.ConvertImage(b, ".jpg",
-				"-resize",
-				"2048x2048>",
-			)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
 
+			out, err := chat.ConvertImage(b, ".jpg", RESIZE_OPTIONS...)
 			if err != nil {
 				log.Print(err)
 				continue
@@ -142,27 +144,23 @@ func EmbedsContent(message *discordgo.Message) []openai.ChatMessagePart {
 			}
 
 			bs := base64.StdEncoding.EncodeToString(bytes)
-			result = append(result,
-				openai.ChatMessagePart{
-					Type: "image_url",
-					ImageURL: &openai.ChatMessageImageURL{
-						URL: fmt.Sprintf("data:image/jpeg;base64,%s", bs),
-					},
-				})
+			image := responses.ResponseInputContentParamOfInputImage("original")
+			image.OfInputImage.ImageURL = param.NewOpt(fmt.Sprintf("data:image/jpeg;base64,%s", bs))
+
+			result = append(result, image)
 		}
 	}
 
 	return result
 }
 
-func TextContent(msg string) []openai.ChatMessagePart {
-	return []openai.ChatMessagePart{{
-		Type: "text",
-		Text: msg,
-	}}
+func TextContent(msg string) []responses.ResponseInputContentUnionParam {
+	return []responses.ResponseInputContentUnionParam{
+		responses.ResponseInputContentParamOfInputText(msg),
+	}
 }
 
-func TemplateContent(tplText string, args any) []openai.ChatMessagePart {
+func TemplateContent(tplText string, args any) []responses.ResponseInputContentUnionParam {
 	buff := bytes.NewBuffer(nil)
 	tpl, err := template.New("anime").Funcs(template.FuncMap{
 		"pad": func(amount int, spacer string, val string) string {
@@ -175,13 +173,13 @@ func TemplateContent(tplText string, args any) []openai.ChatMessagePart {
 	}).Parse(tplText)
 	if err != nil {
 		log.Print(err)
-		return []openai.ChatMessagePart{}
+		return []responses.ResponseInputContentUnionParam{}
 	}
 
 	err = tpl.Execute(buff, args)
 	if err != nil {
 		log.Print(err)
-		return []openai.ChatMessagePart{}
+		return []responses.ResponseInputContentUnionParam{}
 	}
 
 	return TextContent(buff.String())

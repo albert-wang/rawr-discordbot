@@ -36,8 +36,9 @@ type configData struct {
 }
 
 // LoadConfigFromFileAndENV creates a new Config object by first reading in
-//  configuration seetings from the supplied file path, and then overwriting
-//  any values set from environment vartiables.
+//
+//	configuration seetings from the supplied file path, and then overwriting
+//	any values set from environment vartiables.
 func LoadConfigFromFileAndENV(path string) error {
 	jsonBytes, err := ioutil.ReadFile(path)
 	if err != nil {

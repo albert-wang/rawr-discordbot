@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/albert-wang/rawr-discordbot/chat"
-	"github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 const defaultPrompt = `
@@ -76,12 +77,8 @@ func GetPrompt() string {
 	return prompt
 }
 
-func GetContextInChannel(guild string, channel string, contextSize int) []openai.ChatCompletionMessage {
-	result := []openai.ChatCompletionMessage{}
-	result = append(result, openai.ChatCompletionMessage{
-		Role:         "developer",
-		MultiContent: TextContent(GetPrompt()),
-	})
+func GetContextInChannel(guild string, channel string, contextSize int) []responses.ResponseInputItemUnionParam {
+	result := []responses.ResponseInputItemUnionParam{}
 
 	messages := chat.GetPreviousMessageFromUser(guild, channel, "")
 	count := len(messages)
@@ -89,38 +86,38 @@ func GetContextInChannel(guild string, channel string, contextSize int) []openai
 		count = contextSize
 	}
 
-	imagesSent := 0
 	for i := 0; i < count; i++ {
-		hasMedia := imagesSent < 2
 		if messages[i].Author.Bot {
-			hasMedia = false
-		}
-
-		if messages[i].Author.Bot {
-			contents := MessageContent(messages[i], ConversionOptions{
-				IncludeMedia: false,
-			})
-
-			result = append(result, openai.ChatCompletionMessage{
-				Role:         openai.ChatMessageRoleAssistant,
-				MultiContent: contents,
-			})
-		} else {
-			contents := MessageContent(messages[i], ConversionOptions{
-				IncludeMedia: hasMedia && true,
-			})
-
-			for _, v := range contents {
-				if v.Type != openai.ChatMessagePartTypeText {
-					imagesSent++
+			content := ""
+			for _, p := range MessageContent(messages[i], ConversionOptions{IncludeMedia: false}) {
+				if p.OfInputText == nil {
+					continue
 				}
+				if len(content) > 0 {
+					content += "\n"
+				}
+				content += p.OfInputText.Text
 			}
 
-			result = append(result, openai.ChatCompletionMessage{
-				Role:         openai.ChatMessageRoleUser,
-				MultiContent: contents,
+			result = append(result, responses.ResponseInputItemUnionParam{
+				OfMessage: &responses.EasyInputMessageParam{
+					Role: responses.EasyInputMessageRoleAssistant,
+					Content: responses.EasyInputMessageContentUnionParam{
+						OfString: param.NewOpt(content),
+					},
+				},
+			})
+		} else {
+			result = append(result, responses.ResponseInputItemUnionParam{
+				OfMessage: &responses.EasyInputMessageParam{
+					Role: responses.EasyInputMessageRoleUser,
+					Content: responses.EasyInputMessageContentUnionParam{
+						OfInputItemContentList: responses.ResponseInputMessageContentListParam(MessageContent(messages[i], ConversionOptions{IncludeMedia: true})),
+					},
+				},
 			})
 		}
+
 	}
 
 	slices.Reverse(result)

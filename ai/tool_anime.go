@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"log"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/albert-wang/rawr-discordbot/ai/jikan"
 )
@@ -21,11 +22,10 @@ func init() {
 	type Object = map[string]any
 
 	DefineTool(
-		openai.FunctionDefinition{
+		responses.FunctionToolParam{
 			Name: "get_anime_information",
-			Description: `Gets, given an anime name in english, information about that anime. Sometimes, the anime will have multiple seasons. If there are mulitple seasons, try to
-				look up information for the most recent season that has aired or is currently airing.`,
-			Strict: true,
+			Description: param.NewOpt(`Gets, given an anime name in english, information about that anime. Sometimes, the anime will have multiple seasons. If there are mulitple seasons, try to
+				look up information for the most recent season that has aired or is currently airing.`),
 			Parameters: Object{
 				"type":                 "object",
 				"additionalProperties": false,
@@ -42,12 +42,12 @@ func init() {
 	)
 
 	DefineTool(
-		openai.FunctionDefinition{
+		responses.FunctionToolParam{
 			Name: "get_anime_details",
-			Description: `Gets, given an anime id from get_anime_information, detailed information about that anime.
+			Description: param.NewOpt(`Gets, given an anime id from get_anime_information, detailed information about that anime.
 				This includes staff, characters and voice actors.
-				When using this tool and getting information, make sure to also use the provided URL to provide a link for more context.`,
-			Strict: true,
+				When using this tool and getting information, make sure to also use the provided URL to provide a link for more context.`),
+			Strict: param.NewOpt(true),
 			Parameters: Object{
 				"type":                 "object",
 				"additionalProperties": false,
@@ -64,7 +64,7 @@ func init() {
 	)
 }
 
-func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []openai.ChatMessagePart {
+func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []responses.ResponseInputContentUnionParam {
 	anime, err := jikan.GetAnime(args.Anime)
 	if err != nil {
 		log.Print(err)
@@ -82,7 +82,7 @@ func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []
 	return TextContent(string(formatted))
 }
 
-func getAnimeDetails(guild, channel string, args GetAnimeDetailsArgs) []openai.ChatMessagePart {
+func getAnimeDetails(guild, channel string, args GetAnimeDetailsArgs) []responses.ResponseInputContentUnionParam {
 	details, err := jikan.GetAnimeDetails(args.MALID)
 	if err != nil {
 		log.Print(err)

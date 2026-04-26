@@ -6,7 +6,7 @@ import (
 	"github.com/albert-wang/rawr-discordbot/ai"
 	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/bwmarrin/discordgo"
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 type AIResponder struct {
@@ -29,14 +29,17 @@ func (a *AIResponder) Invoke(m *discordgo.MessageCreate, args []string) error {
 	defer complete()
 
 	messages := ai.GetContextInChannel(m.GuildID, m.ChannelID, 32)
-
 	content := ai.MessageContent(m.Message, ai.ConversionOptions{
 		IncludeMedia: true,
 	})
 
-	messages = append(messages, openai.ChatCompletionMessage{
-		Role:         openai.ChatMessageRoleUser,
-		MultiContent: content,
+	messages = append(messages, responses.ResponseInputItemUnionParam{
+		OfMessage: &responses.EasyInputMessageParam{
+			Role: responses.EasyInputMessageRoleUser,
+			Content: responses.EasyInputMessageContentUnionParam{
+				OfInputItemContentList: responses.ResponseInputMessageContentListParam(content),
+			},
+		},
 	})
 
 	a.lastRequest = time.Now()

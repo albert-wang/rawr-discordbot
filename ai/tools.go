@@ -4,32 +4,30 @@ import (
 	"encoding/json"
 	"log"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 // Tool is a single function the model may call. Tools are registered from
 // init() in their own files; ToolDefinitions and InvokeTool are the only
 // public entry points the chat loop uses.
 type Tool struct {
-	Definition openai.Tool
-	Invoke     func(guild, channel, argsJSON string) []openai.ChatMessagePart
+	Definition responses.FunctionToolParam
+	Invoke     func(guild, channel, argsJSON string) []responses.ResponseInputContentUnionParam
 }
 
 var registry = map[string]Tool{}
 
-// DefineTool wires an OpenAI function definition to a typed handler. The
-// generic T is the args struct the handler accepts; JSON unmarshal of the
-// model's argument blob happens here so handlers stay focused on real logic.
+// DefineTool wires a Responses-API function tool definition to a typed
+// handler. The generic T is the args struct the handler accepts; JSON
+// unmarshal of the model's argument blob happens here so handlers stay
+// focused on real logic.
 func DefineTool[T any](
-	def openai.FunctionDefinition,
-	fn func(guild, channel string, args T) []openai.ChatMessagePart,
+	def responses.FunctionToolParam,
+	fn func(guild, channel string, args T) []responses.ResponseInputContentUnionParam,
 ) {
 	t := Tool{
-		Definition: openai.Tool{
-			Type:     openai.ToolTypeFunction,
-			Function: &def,
-		},
-		Invoke: func(guild, channel, argsJSON string) []openai.ChatMessagePart {
+		Definition: def,
+		Invoke: func(guild, channel, argsJSON string) []responses.ResponseInputContentUnionParam {
 			var args T
 			if argsJSON != "" {
 				if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
@@ -41,26 +39,26 @@ func DefineTool[T any](
 		},
 	}
 
-	if t.Definition.Function == nil {
-		panic("ai: tool registered without a function definition")
+	if def.Name == "" {
+		panic("ai: tool registered without a name")
 	}
-	name := t.Definition.Function.Name
-	if _, dup := registry[name]; dup {
-		panic("ai: duplicate tool registration: " + name)
+	if _, dup := registry[def.Name]; dup {
+		panic("ai: duplicate tool registration: " + def.Name)
 	}
 
-	registry[name] = t
+	registry[def.Name] = t
 }
 
-func ToolDefinitions() []openai.Tool {
-	out := make([]openai.Tool, 0, len(registry))
+func ToolDefinitions() []responses.ToolUnionParam {
+	out := make([]responses.ToolUnionParam, 0, len(registry))
 	for _, t := range registry {
-		out = append(out, t.Definition)
+		def := t.Definition
+		out = append(out, responses.ToolUnionParam{OfFunction: &def})
 	}
 	return out
 }
 
-func InvokeTool(guild, channel, name, argsJSON string) []openai.ChatMessagePart {
+func InvokeTool(guild, channel, name, argsJSON string) []responses.ResponseInputContentUnionParam {
 	log.Printf("Invoking tool %s with args %s", name, argsJSON)
 	t, ok := registry[name]
 	if !ok {

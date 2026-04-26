@@ -3,7 +3,8 @@ package ai
 import (
 	"log"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/albert-wang/rawr-discordbot/chat"
 )
@@ -21,10 +22,10 @@ func init() {
 	type Object = map[string]any
 
 	DefineTool(
-		openai.FunctionDefinition{
+		responses.FunctionToolParam{
 			Name:        "get_previous_n_messages_from_user",
-			Description: "Gets the previous N messages for a given user",
-			Strict:      true,
+			Description: param.NewOpt("Gets the previous N messages for a given user"),
+			Strict:      param.NewOpt(true),
 			Parameters: Object{
 				"type":                 "object",
 				"additionalProperties": false,
@@ -45,10 +46,10 @@ func init() {
 	)
 
 	DefineTool(
-		openai.FunctionDefinition{
+		responses.FunctionToolParam{
 			Name:        "get_images_for_message",
-			Description: "Fetch the actual image content for a message. Messages with images have image_count > 0",
-			Strict:      true,
+			Description: param.NewOpt("Fetch the actual image content for a message. Messages with images have image_count > 0"),
+			Strict:      param.NewOpt(true),
 			Parameters: Object{
 				"type":                 "object",
 				"additionalProperties": false,
@@ -78,7 +79,7 @@ func clampCount(requested, available int) int {
 	return max
 }
 
-func getPreviousNMessagesFromUser(guild, channel string, args GetPreviousNMessagesFromUserArgs) []openai.ChatMessagePart {
+func getPreviousNMessagesFromUser(guild, channel string, args GetPreviousNMessagesFromUserArgs) []responses.ResponseInputContentUnionParam {
 	messages := chat.GetPreviousMessageFromUser(guild, channel, args.Who)
 	if len(messages) == 0 {
 		return nil
@@ -87,7 +88,7 @@ func getPreviousNMessagesFromUser(guild, channel string, args GetPreviousNMessag
 	max := clampCount(args.Count, len(messages))
 	messages = messages[:max]
 
-	content := []openai.ChatMessagePart{}
+	content := []responses.ResponseInputContentUnionParam{}
 	for _, v := range messages {
 		content = append(content, MessageContent(v, ConversionOptions{
 			IncludeMedia: true,
@@ -96,7 +97,7 @@ func getPreviousNMessagesFromUser(guild, channel string, args GetPreviousNMessag
 	return content
 }
 
-func getMessageImages(guild, channel string, args GetLastImageArgs) []openai.ChatMessagePart {
+func getMessageImages(guild, channel string, args GetLastImageArgs) []responses.ResponseInputContentUnionParam {
 	log.Printf("Getting last image with: %+v", args)
 
 	message := chat.GetMessage(guild, channel, args.MessageID)
@@ -105,7 +106,7 @@ func getMessageImages(guild, channel string, args GetLastImageArgs) []openai.Cha
 		return nil
 	}
 
-	content := []openai.ChatMessagePart{}
+	content := []responses.ResponseInputContentUnionParam{}
 	content = append(content, EmbedsContent(message)...)
 	content = append(content, AttachmentsContent(message)...)
 	return content
