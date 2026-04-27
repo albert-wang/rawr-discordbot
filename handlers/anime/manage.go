@@ -101,6 +101,14 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 
 	if args.SortByTime {
 		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].LastModified.Year() < 2000 {
+				return false
+			}
+
+			if sorted[j].LastModified.Year() < 2000 {
+				return true
+			}
+
 			return sorted[i].LastModified.Before(sorted[j].LastModified)
 		})
 	} else {
@@ -111,7 +119,15 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 
 	if !args.All {
 		sorted = Filter(sorted, func(a *Status, _ int) bool {
-			if a.Name == "lotgh" {
+			if a.Status == "Completed" {
+				return false
+			}
+
+			if a.Status == "KAMI" {
+				return true
+			}
+
+			if a.Status == "Not started" {
 				return true
 			}
 
@@ -120,8 +136,9 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 	}
 
 	table := chat.CreateTable(
-		chat.TableHeader{Title: "Title", Align: chat.TableAlignRight},
-		chat.TableHeader{Title: "Episode", Align: chat.TableAlignRight},
+		chat.TableHeader{Title: "Slug", Align: chat.TableAlignRight},
+		chat.TableHeader{Title: "Ep", Align: chat.TableAlignRight},
+		chat.TableHeader{Title: "Block", Align: chat.TableAlignRight},
 		chat.TableHeader{Title: "Last Updated", Align: chat.TableAlignLeft},
 	)
 
@@ -129,6 +146,7 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 		table.AddRow(
 			strings.TrimSpace(a.Name),
 			fmt.Sprintf("%d", a.CurrentEpisode),
+			a.Block,
 			a.LastModified.Format("Mon, Jan 02"),
 		)
 	}

@@ -149,7 +149,7 @@ func toFunctionCallOutputs(parts []responses.ResponseInputContentUnionParam) res
 
 func UnboundedRespondToContent(guildID string, channelID string, messages []responses.ResponseInputItemUnionParam) []string {
 	client := openai.NewClient(
-		option.WithAPIKey(config.CPTKey),
+		option.WithAPIKey(config.OpenAIKey),
 	)
 
 	msg, err := makeOpenAPIRequest(guildID, channelID, PrimaryModel, 3, client, messages)

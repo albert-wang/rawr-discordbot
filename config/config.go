@@ -23,7 +23,10 @@ var AWSAccessKey string
 var AWSSecret string
 
 // Secret key for ChatGPT
-var CPTKey string
+var OpenAIKey string
+
+// API Key for notion integration
+var NotionKey string
 
 // configData is used to temporarily hold values read from a config file
 type configData struct {
@@ -32,7 +35,8 @@ type configData struct {
 	RedisServerAddress string
 	AWSAccessKey       string
 	AWSSecret          string
-	CPTKey             string
+	OpenAIKey          string
+	NotionSecret       string
 }
 
 // LoadConfigFromFileAndENV creates a new Config object by first reading in
@@ -56,6 +60,7 @@ func LoadConfigFromFileAndENV(path string) error {
 	RedisServerAddress = conf.RedisServerAddress
 	AWSAccessKey = conf.AWSAccessKey
 	AWSSecret = conf.AWSSecret
-	CPTKey = conf.CPTKey
+	OpenAIKey = conf.OpenAIKey
+	NotionKey = conf.NotionSecret
 	return nil
 }

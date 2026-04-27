@@ -41,6 +41,8 @@ github.com/gorilla/websocket v1.5.1 h1:gmztn0JnHVt9JZquRuzLw3g4wouNVzKL15iLr/zn/
 github.com/gorilla/websocket v1.5.1/go.mod h1:x3kM2JMyaluk02fnUJpQuwD2dCS5NDG2ZHL0uE0tcaY=
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/jomei/notionapi v1.13.3 h1:pzEN+pVe1T0FjH85sP9TCqqe58rFRL+Fj+F5yvyBNw4=
+github.com/jomei/notionapi v1.13.3/go.mod h1:BqzP6JBddpBnXvMSIxiR5dCoCjKngmz5QNl1ONDlDoM=
 github.com/mitchellh/goamz v0.0.0-20150317174335-caaaea8b30ee h1:Wp4ixY2/QEZOrQrGMF1h1x4yxqsef+aQPse0XMXzZhs=
 github.com/mitchellh/goamz v0.0.0-20150317174335-caaaea8b30ee/go.mod h1:svb8iUupD5i7RyGXoCUrk3EQSaXjWxKuqiZ0j41Jmm8=
 github.com/motain/gocheck v0.0.0-20131023154940-9beb271d26e6 h1:gKdQPVb3yDSbcw4sgNyrt2LP0/4uTdrvTm3e4IcATCE=

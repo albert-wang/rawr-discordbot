@@ -26,7 +26,7 @@ type InspectArguments struct {
 	Anime string `arg:"positional"`
 }
 
-func (db *Database) Inspect(msg *discordgo.MessageCreate, args *SubArguments) (string, error) {
+func (db *Database) Inspect(msg *discordgo.MessageCreate, args *InspectArguments) (string, error) {
 	name, anime := db.search(args.Anime)
 	if anime == nil {
 		return UnknownAnime(args.Anime), nil

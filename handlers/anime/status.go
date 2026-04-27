@@ -7,11 +7,19 @@ import (
 )
 
 type Status struct {
-	Name           string
-	CurrentEpisode int64
-	LastModified   time.Time
-	EpisodeSource  string
-	Subgroup       string
+	Name           string    `notion:"Slug"`
+	DisplayName    string    `notion:"[Name]"`
+	CurrentEpisode int64     `notion:"Ep"`
+	LastModified   time.Time `notion:"Last Watched"`
+	EpisodeSource  string    `notion:"Source"`
+	Subgroup       string    `notion:"Sub Group"`
+
+	Block      string `notion:"Block"`
+	Status     string `notion:"Status"`
+	People     string `notion:"Peeps"`
+	KiriRating int    `notion:"Kirirating"`
+	Rawrting   int    `notion:"Rawrting"`
+	Color      int    `notion:"AnsiColor"`
 }
 
 func (a *Status) FormattedTime() string {
