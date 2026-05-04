@@ -117,7 +117,7 @@ func (tbl *Table) Render() string {
 			}
 
 			if y%4 >= 2 {
-				result += "\u001b[0;30m"
+				result += "\u001b[0;36m"
 			}
 			result += align(tbl.Headers[i].Align, widths[i], v)
 			if y%4 >= 2 {

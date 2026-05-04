@@ -19,6 +19,8 @@ func (db *Database) Sub(msg *discordgo.MessageCreate, args *SubArguments) (strin
 	}
 
 	anime.Subgroup = args.Subber
+	db.animes[name] = *anime
+
 	return fmt.Sprintf("Set %s sub=%s", name, args.Subber), nil
 }
 

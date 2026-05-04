@@ -143,11 +143,16 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 	)
 
 	for _, a := range sorted {
+		date := a.LastModified.Format("Mon, Jan 02")
+		if a.LastModified.Year() < 2000 {
+			date = ""
+		}
+
 		table.AddRow(
 			strings.TrimSpace(a.Name),
 			fmt.Sprintf("%d", a.CurrentEpisode),
 			a.Block,
-			a.LastModified.Format("Mon, Jan 02"),
+			date,
 		)
 	}
 
