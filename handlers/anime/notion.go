@@ -22,21 +22,22 @@ type dateOnly struct {
 	Date time.Time
 }
 
+type dateOnlyJson struct {
+	Type notionapi.PropertyType `json:"type,omitempty"`
+	Date struct {
+		Start string `json:"start"`
+	} `json:"date"`
+}
+
 func (d *dateOnly) GetID() string                   { return "" }
 func (d *dateOnly) GetType() notionapi.PropertyType { return d.Type }
 
 func (d *dateOnly) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type notionapi.PropertyType `json:"type,omitempty"`
-		Date struct {
-			Start string `json:"start"`
-		} `json:"date"`
-	}{
-		Type: d.Type,
-		Date: struct {
-			Start string `json:"start"`
-		}{Start: d.Date.Format("2006-01-02")},
-	})
+	res := dateOnlyJson{}
+	res.Type = d.Type
+	res.Date.Start = d.Date.Format("2006-01-02")
+
+	return json.Marshal(res)
 }
 
 const SLUG_COLUMN = "Slug"
