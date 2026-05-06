@@ -109,6 +109,10 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 				return true
 			}
 
+			if sorted[i].LastModified.Equal(sorted[j].LastModified) {
+				return strings.Compare(sorted[i].Block, sorted[j].Block) < 0
+			}
+
 			return sorted[i].LastModified.Before(sorted[j].LastModified)
 		})
 	} else {
@@ -119,7 +123,7 @@ func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (str
 
 	if !args.All {
 		sorted = Filter(sorted, func(a *Status, _ int) bool {
-			if a.Status == "Completed" {
+			if a.Status == "Done" || a.Status == "Dropped" {
 				return false
 			}
 

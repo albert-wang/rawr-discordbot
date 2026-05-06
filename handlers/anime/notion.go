@@ -18,8 +18,8 @@ import (
 // Notion treats the value as a date (not a datetime). The lib's *Date type
 // always marshals via RFC3339, so we substitute a custom marshaler.
 type dateOnly struct {
-	Type  notionapi.PropertyType
-	Start time.Time
+	Type notionapi.PropertyType
+	Date time.Time
 }
 
 func (d *dateOnly) GetID() string                   { return "" }
@@ -35,7 +35,7 @@ func (d *dateOnly) MarshalJSON() ([]byte, error) {
 		Type: d.Type,
 		Date: struct {
 			Start string `json:"start"`
-		}{Start: d.Start.Format("2006-01-02")},
+		}{Start: d.Date.Format("2006-01-02")},
 	})
 }
 
@@ -113,7 +113,7 @@ func unmarshalPage(page notionapi.Page, dst any) {
 			continue
 		}
 
-		setFromProperty(v.Field(i), prop)
+		setFromProperty(v.Field(i), prop, name)
 	}
 }
 
@@ -126,12 +126,12 @@ func findTitleProperty(props notionapi.Properties) notionapi.Property {
 	return nil
 }
 
-func setFromProperty(field reflect.Value, prop notionapi.Property) {
+func setFromProperty(field reflect.Value, prop notionapi.Property, name string) {
 	switch p := prop.(type) {
 	case *notionapi.TitleProperty:
-		setString(field, joinRichText(p.Title))
+		setString(field, richTextToString(p.Title))
 	case *notionapi.RichTextProperty:
-		setString(field, joinRichText(p.RichText))
+		setString(field, richTextToString(p.RichText))
 	case *notionapi.NumberProperty:
 		setNumber(field, p.Number)
 	case *notionapi.URLProperty:
@@ -175,10 +175,14 @@ func setTime(field reflect.Value, t time.Time) {
 	}
 }
 
-func joinRichText(rt []notionapi.RichText) string {
-	parts := make([]string, 0, len(rt))
+func richTextToString(rt []notionapi.RichText) string {
+	parts := []string{}
 	for _, t := range rt {
-		parts = append(parts, t.PlainText)
+		if t.PlainText != "" {
+			parts = append(parts, t.PlainText)
+		} else if t.Text != nil && t.Text.Content != "" {
+			parts = append(parts, t.Text.Content)
+		}
 	}
 	return strings.Join(parts, "")
 }
@@ -223,17 +227,23 @@ func saveAll(client *notionapi.Client, animes map[string]Status) error {
 			log.Printf("save: no Notion page for slug %q, skipping", slug)
 			continue
 		}
+
 		props := buildUpdate(page.Properties, status)
 		if len(props) == 0 {
 			continue
 		}
 
+		debugBytes, _ := json.MarshalIndent(props, "", "  ")
+		log.Printf("Updating anime slug=%s with props=%s", slug, string(debugBytes))
+
 		_, err := client.Page.Update(context.Background(), notionapi.PageID(page.ID), &notionapi.PageUpdateRequest{
 			Properties: props,
 		})
+
 		if err != nil {
 			log.Printf("save: update slug %q failed: %v", slug, err)
 		}
+
 	}
 
 	return nil
@@ -244,9 +254,9 @@ func saveAll(client *notionapi.Client, animes map[string]Status) error {
 func propertyToString(prop notionapi.Property) string {
 	switch p := prop.(type) {
 	case *notionapi.TitleProperty:
-		return joinRichText(p.Title)
+		return richTextToString(p.Title)
 	case *notionapi.RichTextProperty:
-		return joinRichText(p.RichText)
+		return richTextToString(p.RichText)
 	case *notionapi.URLProperty:
 		return p.URL
 	case *notionapi.SelectProperty:
@@ -255,22 +265,59 @@ func propertyToString(prop notionapi.Property) string {
 		return p.Status.Name
 	case *notionapi.NumberProperty:
 		return strconv.FormatFloat(p.Number, 'f', -1, 64)
+	case *dateOnly:
+		return p.Date.Format("2006-01-02")
+	case *notionapi.DateProperty:
+		if p.Date == nil {
+			return ""
+		}
+
+		if p.Date.Start != nil {
+			return time.Time(*p.Date.Start).Format("2006-01-02")
+		} else if p.Date.End != nil {
+			return time.Time(*p.Date.End).Format("2006-01-02")
+		}
 	}
 	return ""
 }
 
+func maybeUpdateProperty(name string, originalProperty notionapi.Property, next map[string]reflect.Value, out notionapi.Properties) {
+	nextValue, ok := next[name]
+	if !ok {
+		return
+	}
+
+	nextProperty := valueToProperty(originalProperty, nextValue)
+	if nextProperty == nil {
+		return
+	}
+
+	origStr := propertyToString(originalProperty)
+	nextStr := propertyToString(nextProperty)
+
+	if origStr == nextStr {
+		return
+	}
+
+	out[name] = nextProperty
+}
+
 func buildUpdate(orig notionapi.Properties, src any) notionapi.Properties {
-	fields := fieldMap(src)
+	next := fieldMap(src)
 	out := notionapi.Properties{}
-	for name, prop := range orig {
-		field, ok := fields[name]
-		if !ok {
-			continue
-		}
-		newProp := fieldToProperty(prop, field)
-		if newProp != nil {
-			out[name] = newProp
-		}
+
+	for name, originalProperty := range orig {
+		maybeUpdateProperty(name, originalProperty, next, out)
+	}
+
+	_, epExists := orig["Ep"]
+	if !epExists {
+		maybeUpdateProperty("Ep", &notionapi.NumberProperty{}, next, out)
+	}
+
+	_, lwExists := orig["Last Watched"]
+	if !lwExists {
+		maybeUpdateProperty("Last Watched", &notionapi.DateProperty{}, next, out)
 	}
 	return out
 }
@@ -302,58 +349,50 @@ func fieldMap(src any) map[string]reflect.Value {
 	return out
 }
 
-// fieldToProperty builds a writable Notion property of the same concrete type
+// valueToProperty builds a writable Notion property of the same concrete type
 // as prop, carrying field's value. Returns nil to skip (empty string, zero
 // number, zero time) or for read-only/derived property types.
-func fieldToProperty(prop notionapi.Property, field reflect.Value) notionapi.Property {
+func valueToProperty(prop notionapi.Property, value reflect.Value) notionapi.Property {
 	switch p := prop.(type) {
 	case *notionapi.RichTextProperty:
-		s := fieldToString(field)
-		if s == "" {
-			return nil
-		}
+		s := valueToString(value)
 		return &notionapi.RichTextProperty{
 			Type: p.Type,
 			RichText: []notionapi.RichText{{
-				Type: "text",
-				Text: &notionapi.Text{Content: s},
+				Type:      "text",
+				PlainText: s,
 			}},
 		}
 	case *notionapi.NumberProperty:
-		f := fieldToFloat(field)
-		if f == 0 {
-			return nil
-		}
+		f := valueToFloat(value)
 		return &notionapi.NumberProperty{Type: p.Type, Number: f}
 	case *notionapi.URLProperty:
-		s := fieldToString(field)
-		if s == "" {
-			return nil
-		}
+		s := valueToString(value)
 		return &notionapi.URLProperty{Type: p.Type, URL: s}
 	case *notionapi.SelectProperty:
-		s := fieldToString(field)
-		if s == "" {
+		if value.Int() == 0 {
 			return nil
 		}
+
+		s := valueToString(value)
 		return &notionapi.SelectProperty{
 			Type:   p.Type,
 			Select: notionapi.Option{Name: s},
 		}
 	case *notionapi.DateProperty:
-		if field.Type() != reflect.TypeOf(time.Time{}) {
+		if value.Type() != reflect.TypeOf(time.Time{}) {
 			return nil
 		}
-		t := field.Interface().(time.Time)
+		t := value.Interface().(time.Time)
 		if t.IsZero() {
 			return nil
 		}
-		return &dateOnly{Type: p.Type, Start: t}
+		return &dateOnly{Type: p.Type, Date: t}
 	}
 	return nil
 }
 
-func fieldToString(field reflect.Value) string {
+func valueToString(field reflect.Value) string {
 	if field.Type() == reflect.TypeOf(time.Time{}) {
 		t := field.Interface().(time.Time)
 		if t.Year() < 2000 {
@@ -362,6 +401,7 @@ func fieldToString(field reflect.Value) string {
 
 		return t.Format("2006-01-02")
 	}
+
 	switch field.Kind() {
 	case reflect.String:
 		return field.String()
@@ -371,7 +411,7 @@ func fieldToString(field reflect.Value) string {
 	return ""
 }
 
-func fieldToFloat(field reflect.Value) float64 {
+func valueToFloat(field reflect.Value) float64 {
 	if field.Kind() != reflect.Int && field.Kind() != reflect.Int64 {
 		return 0
 	}
