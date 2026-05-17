@@ -18,13 +18,17 @@ type GetLastImageArgs struct {
 	MessageID string `json:"message_id"`
 }
 
+type GetMessageByIdArgs struct {
+	MessageID string `json:"message_id"`
+}
+
 func init() {
 	type Object = map[string]any
 
 	DefineTool(
 		responses.FunctionToolParam{
 			Name:        "get_previous_n_messages_from_user",
-			Description: param.NewOpt("Gets the previous N messages for a given user"),
+			Description: param.NewOpt(`Use this when you want context around a message. This gets the previous N messages for a given user, or all users.`),
 			Strict:      param.NewOpt(true),
 			Parameters: Object{
 				"type":                 "object",
@@ -64,19 +68,46 @@ func init() {
 		},
 		getMessageImages,
 	)
+
+	DefineTool(
+		responses.FunctionToolParam{
+			Name:        "get_message_by_id",
+			Description: param.NewOpt(`Use this when a message references a previous message to get the contents of the previous message`),
+			Strict:      param.NewOpt(true),
+			Parameters: Object{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": Object{
+					"message_id": Object{
+						"type":        "string",
+						"description": "The message ID to get. Read it from the reference attribute in the tag that prefixes each message in the conversation.",
+					},
+				},
+				"required": []string{"message_id"},
+			},
+		},
+		getMessageById,
+	)
 }
 
-// clampCount clamps to [1, min(5, available)]. Returns 0 if nothing fits,
-// matching the prior "off by one" behavior where max <= len(messages)-1.
 func clampCount(requested, available int) int {
-	max := 30
-	if requested > 0 && requested < 5 {
-		max = requested
+	if requested < 5 {
+		requested = 5
 	}
-	if max > available-1 {
-		max = available - 1
+
+	if requested > 30 {
+		requested = 30
 	}
-	return max
+
+	if requested < available {
+		return requested
+	}
+
+	if requested >= available {
+		return available
+	}
+
+	return requested
 }
 
 func getPreviousNMessagesFromUser(guild, channel string, args GetPreviousNMessagesFromUserArgs) []responses.ResponseInputContentUnionParam {
@@ -110,4 +141,16 @@ func getMessageImages(guild, channel string, args GetLastImageArgs) []responses.
 	content = append(content, EmbedsContent(message)...)
 	content = append(content, AttachmentsContent(message)...)
 	return content
+}
+
+func getMessageById(guild, channel string, args GetMessageByIdArgs) []responses.ResponseInputContentUnionParam {
+	message := chat.GetMessage(guild, channel, args.MessageID)
+	if message == nil {
+		log.Print("Found no relevant messages")
+		return nil
+	}
+
+	return MessageContent(message, ConversionOptions{
+		IncludeMedia: true,
+	})
 }

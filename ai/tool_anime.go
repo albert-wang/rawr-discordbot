@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"cmp"
 	"encoding/json"
 	"log"
+	"slices"
 
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
@@ -10,29 +12,25 @@ import (
 	"github.com/albert-wang/rawr-discordbot/ai/jikan"
 )
 
-type GetAnimeInformationArgs struct {
-	Anime string `json:"anime"`
-}
-
-type GetAnimeDetailsArgs struct {
-	MALID int `json:"anime"`
-}
-
 func init() {
 	type Object = map[string]any
 
 	DefineTool(
 		responses.FunctionToolParam{
 			Name: "get_anime_information",
-			Description: param.NewOpt(`Gets, given an anime name in english, information about that anime. Sometimes, the anime will have multiple seasons. If there are mulitple seasons, try to
-				look up information for the most recent season that has aired or is currently airing.`),
+			Description: param.NewOpt(`Use this when a user wants information about an anime by name, in English.
+				This returns information in JSON format.
+				The name may be romanicized japanese.
+				Sometimes, the returned anime will have multiple seasons with the same name. Prefer getting information
+				about the most recent season unless otherwise specified.`),
+			Strict: param.NewOpt(true),
 			Parameters: Object{
 				"type":                 "object",
 				"additionalProperties": false,
 				"properties": Object{
 					"anime": Object{
 						"type":        "string",
-						"description": "The title, in english, of the anime to get information for.",
+						"description": "The title of the anime to look up. May be in English or romanized Japanese.",
 					},
 				},
 				"required": []string{"anime"},
@@ -44,8 +42,8 @@ func init() {
 	DefineTool(
 		responses.FunctionToolParam{
 			Name: "get_anime_details",
-			Description: param.NewOpt(`Gets, given an anime id from get_anime_information, detailed information about that anime.
-				This includes staff, characters and voice actors.
+			Description: param.NewOpt(`Use this to extend your knowledge about an anime, given an anime id from get_anime_information.
+				Returns staff, characters, voice actors, and other data for the anime.
 				When using this tool and getting information, make sure to also use the provided URL to provide a link for more context.`),
 			Strict: param.NewOpt(true),
 			Parameters: Object{
@@ -62,6 +60,42 @@ func init() {
 		},
 		getAnimeDetails,
 	)
+
+	DefineTool(
+		responses.FunctionToolParam{
+			Name: "get_seasonal_anime",
+			Description: param.NewOpt(`Use this to obtain a list of anime that are airing for a given season.
+				Seasons are designated by a numerical year, and a season - one of 'winter', 'spring', 'summer', or 'fall'.
+				Know that winter generally means January to March, spring April to June, summer is June to September, and
+				fall is October to December.
+
+				This returns 32 entries, ordered by popularity.
+
+				Each result has a 'url' field — link it from the anime's title when you mention it.
+			`),
+			Strict: param.NewOpt(true),
+			Parameters: Object{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": Object{
+					"year": Object{
+						"type":        "integer",
+						"description": "The year to query for",
+					},
+					"season": Object{
+						"type":        "string",
+						"description": "The season. One of 'winter', 'spring', 'summer', or 'fall'",
+					},
+				},
+				"required": []string{"year", "season"},
+			},
+		},
+		getSeasonalAnime,
+	)
+}
+
+type GetAnimeInformationArgs struct {
+	Anime string `json:"anime"`
 }
 
 func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []responses.ResponseInputContentUnionParam {
@@ -82,6 +116,10 @@ func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []
 	return TextContent(string(formatted))
 }
 
+type GetAnimeDetailsArgs struct {
+	MALID int `json:"anime"`
+}
+
 func getAnimeDetails(guild, channel string, args GetAnimeDetailsArgs) []responses.ResponseInputContentUnionParam {
 	details, err := jikan.GetAnimeDetails(args.MALID)
 	if err != nil {
@@ -90,6 +128,44 @@ func getAnimeDetails(guild, channel string, args GetAnimeDetailsArgs) []response
 	}
 
 	formatted, err := json.MarshalIndent(details, "", "  ")
+	if err != nil {
+		log.Print(err)
+		return nil
+	}
+	return TextContent(string(formatted))
+}
+
+type GetSeasonalAnimeArgs struct {
+	Year   int    `json:"year"`
+	Season string `json:"season"`
+}
+
+func getSeasonalAnime(guild, channel string, args GetSeasonalAnimeArgs) []responses.ResponseInputContentUnionParam {
+	if args.Year < 1995 {
+		return TextContent("Year must be 1995 or later")
+	}
+
+	switch args.Season {
+	case "winter", "spring", "summer", "fall":
+	default:
+		return TextContent(`season must be one of "winter", "spring", "summer", "fall"`)
+	}
+
+	seasonal, err := jikan.GetSeason(args.Year, args.Season)
+	if err != nil {
+		log.Print(err)
+		return nil
+	}
+
+	slices.SortFunc(seasonal, func(a jikan.AnimeInformation, b jikan.AnimeInformation) int {
+		return cmp.Compare(b.Popularity, a.Popularity)
+	})
+
+	if len(seasonal) > 32 {
+		seasonal = seasonal[:32]
+	}
+
+	formatted, err := json.MarshalIndent(seasonal, "", "  ")
 	if err != nil {
 		log.Print(err)
 		return nil

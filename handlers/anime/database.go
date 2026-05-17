@@ -103,8 +103,6 @@ func (db *Database) Handle(cmd string, m *discordgo.MessageCreate, args []string
 	switch cmd {
 	case "del":
 		return genericHandle(db, m, args, (*Database).Delete)
-	case "mv":
-		return genericHandle(db, m, args, (*Database).Move)
 	case "set":
 		return genericHandle(db, m, args, (*Database).Set)
 	case "list":

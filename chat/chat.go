@@ -118,7 +118,7 @@ func GetMessage(guildID string, channelID string, messageID string) *discordgo.M
 }
 
 func GetPreviousMessageFromUser(guildID string, channelID string, user string) []*discordgo.Message {
-	messages, err := client.ChannelMessages(channelID, 30, "", "", "")
+	messages, err := client.ChannelMessages(channelID, 64, "", "", "")
 	if err != nil {
 		log.Print(err)
 		return []*discordgo.Message{}

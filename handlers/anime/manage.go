@@ -20,30 +20,10 @@ func (db *Database) Delete(msg *discordgo.MessageCreate, args *DeleteArguments) 
 		return UnknownAnime(args.Name), nil
 	}
 
-	delete(db.animes, name)
+	status.Status = "Done"
+	db.animes[name] = *status
+
 	return fmt.Sprintf("Deleted %s", name), nil
-}
-
-type MoveArguments struct {
-	From string `arg:"positional"`
-	To   string `arg:"positional"`
-}
-
-func (db *Database) Move(msg *discordgo.MessageCreate, args *MoveArguments) (string, error) {
-	first, ok := db.search(args.From)
-	if ok == nil {
-		return UnknownAnime(args.From), nil
-	}
-
-	_, to := db.animes[args.To]
-	if to {
-		return "mv cannot overwrite elements", nil
-	}
-
-	db.animes[args.To] = *ok
-	delete(db.animes, first)
-
-	return fmt.Sprintf("Moved %s -> %s", first, args.To), nil
 }
 
 type SetArguments struct {

@@ -55,6 +55,12 @@ func ToolDefinitions() []responses.ToolUnionParam {
 		def := t.Definition
 		out = append(out, responses.ToolUnionParam{OfFunction: &def})
 	}
+
+	out = append(out, responses.ToolUnionParam{
+		OfWebSearch: &responses.WebSearchToolParam{
+			Type: responses.WebSearchToolTypeWebSearch,
+		},
+	})
 	return out
 }
 

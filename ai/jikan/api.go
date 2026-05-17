@@ -14,17 +14,23 @@ type envelope[T any] struct {
 }
 
 type AnimeInformation struct {
-	Title  string  `json:"title"`
-	MalID  int     `json:"mal_id"`
-	Score  float64 `json:"score"`
-	Year   int     `json:"year"`
-	Season string  `json:"season"`
-	Status string  `json:"status"`
+	Title         string  `json:"title"`
+	URL           string  `json:"url"`
+	JapaneseTitle string  `json:"title_japanese"`
+	MalID         int     `json:"mal_id"`
+	Score         float64 `json:"score"`
+	Year          int     `json:"year"`
+	Season        string  `json:"season"`
+	Status        string  `json:"status"`
+	Synopsis      string  `json:"synopsis"`
+	Popularity    int     `json:"popularity"`
 }
 
 type AnimeDetails struct {
-	Title string `json:"title"`
-	URL   string `json:"url"`
+	Title         string `json:"title"`
+	JapaneseTitle string `json:"title_japanese"`
+	URL           string `json:"url"`
+	Synopsis      string `json:"synopsis"`
 
 	Studios []struct {
 		Name string `json:"name"`
@@ -36,8 +42,11 @@ type AnimeDetails struct {
 }
 
 type AnimeFull struct {
-	Title string `json:"title"`
-	URL   string `json:"url"`
+	Title         string  `json:"title"`
+	JapaneseTitle string  `json:"title_japanese"`
+	URL           string  `json:"url"`
+	Score         float64 `json:"score"`
+	Synopsis      string  `json:"synopsis"`
 
 	Studios []struct {
 		Name string `json:"name"`
@@ -156,6 +165,15 @@ func GetAnime(anime string) ([]AnimeInformation, error) {
 	q.Set("q", anime)
 
 	url.RawQuery = q.Encode()
+
+	return apiCall[[]AnimeInformation](url.String())
+}
+
+func GetSeason(year int, season string) ([]AnimeInformation, error) {
+	url, err := url.Parse(fmt.Sprintf("https://api.jikan.moe/v4/seasons/%d/%s", year, season))
+	if err != nil {
+		return nil, err
+	}
 
 	return apiCall[[]AnimeInformation](url.String())
 }

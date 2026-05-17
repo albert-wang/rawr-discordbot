@@ -1,6 +1,6 @@
 module github.com/albert-wang/rawr-discordbot
 
-go 1.25.0
+go 1.26.3
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0

@@ -56,6 +56,16 @@ func MessageContent(message *discordgo.Message, opts ConversionOptions) []respon
 		imageCount,
 	)
 
+	if message.ReferencedMessage != nil {
+		header = fmt.Sprintf(`<msg message_id="%s" author_name="%s" author_id="%s" image_count="%d" reference="%s">`,
+			message.ID,
+			message.Author.Username,
+			message.Author.ID,
+			imageCount,
+			message.ReferencedMessage.ID,
+		)
+	}
+
 	result = append(result,
 		responses.ResponseInputContentParamOfInputText(fmt.Sprintf("%s\n%s\n</msg>", header, strings.TrimSpace(content))))
 
