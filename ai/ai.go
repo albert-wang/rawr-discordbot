@@ -25,7 +25,7 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 
 	req := responses.ResponseNewParams{
 		Model:           model.Name,
-		MaxOutputTokens: param.NewOpt[int64](1024 * 4),
+		MaxOutputTokens: param.NewOpt[int64](1024 * 16),
 		Reasoning: shared.ReasoningParam{
 			Effort: "low",
 		},
@@ -85,7 +85,13 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 							}
 						}
 
-						return cleanupMessage(totalContent), nil
+						cleaned := cleanupMessage(totalContent)
+						if strings.TrimSpace(cleaned) == "" {
+							log.Printf("empty response: status=%s incomplete=%+v rawText=%q cleaned=%q",
+								resp.Status, resp.IncompleteDetails, totalContent, cleaned)
+						}
+
+						return cleaned, nil
 					case "failed", "incomplete", "cancelled":
 						{
 							return "", fmt.Errorf("error: %s", msg.Status)
@@ -159,5 +165,6 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []resp
 		return []string{}
 	}
 
+	log.Printf("message: %s", msg)
 	return chat.SplitMessage(msg)
 }

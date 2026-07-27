@@ -28,7 +28,7 @@ func (a *AIResponder) Invoke(m *discordgo.MessageCreate, args []string) error {
 	complete := chat.ShowTyping(m.ChannelID)
 	defer complete()
 
-	messages := ai.GetContextInChannel(m.GuildID, m.ChannelID, 32)
+	messages := ai.GetContextInChannel(m.GuildID, m.ChannelID, 64)
 	content := ai.MessageContent(m.Message, ai.ConversionOptions{
 		IncludeMedia: true,
 	})
