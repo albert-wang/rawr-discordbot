@@ -5,6 +5,7 @@ package config
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 )
 
 // The port that this application listens on for commands.
@@ -67,5 +68,7 @@ func LoadConfigFromFileAndENV(path string) error {
 	OpenAIKey = conf.OpenAIKey
 	OpenAIModel = conf.OpenAIModel
 	NotionKey = conf.NotionSecret
+
+	log.Printf("chat gpt model=%s", OpenAIModel)
 	return nil
 }
