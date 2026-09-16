@@ -158,7 +158,16 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []resp
 		option.WithAPIKey(config.OpenAIKey),
 	)
 
-	msg, err := makeOpenAPIRequest(guildID, channelID, PrimaryModel, 3, client, messages)
+	model := PrimaryModel
+	if config.OpenAIModel != "" {
+		model = AIModel{
+			Name:     config.OpenAIModel,
+			Vision:   true,
+			Function: true,
+		}
+	}
+
+	msg, err := makeOpenAPIRequest(guildID, channelID, model, 3, client, messages)
 	if err != nil {
 		chat.SendMessageToChannel(channelID, "Error while generating message, "+err.Error())
 		log.Print(err)

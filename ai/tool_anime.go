@@ -3,6 +3,7 @@ package ai
 import (
 	"cmp"
 	"encoding/json"
+	"fmt"
 	"log"
 	"slices"
 
@@ -11,6 +12,17 @@ import (
 
 	"github.com/albert-wang/rawr-discordbot/ai/jikan"
 )
+
+// jikanFailed reports a Jikan API failure to the model. Returning nil here
+// would send back an empty tool result, which the model reads as "give up";
+// instead, tell it what happened and point it at web search as a fallback.
+func jikanFailed(err error) []responses.ResponseInputContentUnionParam {
+	log.Print(err)
+	return TextContent(fmt.Sprintf(
+		`The anime database (Jikan/MyAnimeList) request failed: %v.
+		Do not give up and do not tell the user you failed yet — answer their question a different way.
+		Use the web_search tool instead (myanimelist.net, anilist.co, or Wikipedia are good sources).`, err))
+}
 
 func init() {
 	type Object = map[string]any
@@ -101,11 +113,11 @@ type GetAnimeInformationArgs struct {
 func getAnimeInformation(guild, channel string, args GetAnimeInformationArgs) []responses.ResponseInputContentUnionParam {
 	anime, err := jikan.GetAnime(args.Anime)
 	if err != nil {
-		log.Print(err)
-		return nil
+		return jikanFailed(err)
 	}
 	if len(anime) == 0 {
-		return TextContent("No anime found")
+		return TextContent(`No anime found for that title.
+			Retry this tool with a different spelling or romanization, or fall back to the web_search tool.`)
 	}
 
 	formatted, err := json.MarshalIndent(anime, "", "  ")
@@ -123,8 +135,7 @@ type GetAnimeDetailsArgs struct {
 func getAnimeDetails(guild, channel string, args GetAnimeDetailsArgs) []responses.ResponseInputContentUnionParam {
 	details, err := jikan.GetAnimeDetails(args.MALID)
 	if err != nil {
-		log.Print(err)
-		return nil
+		return jikanFailed(err)
 	}
 
 	formatted, err := json.MarshalIndent(details, "", "  ")
@@ -153,8 +164,7 @@ func getSeasonalAnime(guild, channel string, args GetSeasonalAnimeArgs) []respon
 
 	seasonal, err := jikan.GetSeason(args.Year, args.Season)
 	if err != nil {
-		log.Print(err)
-		return nil
+		return jikanFailed(err)
 	}
 
 	slices.SortFunc(seasonal, func(a jikan.AnimeInformation, b jikan.AnimeInformation) int {

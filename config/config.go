@@ -25,6 +25,9 @@ var AWSSecret string
 // Secret key for ChatGPT
 var OpenAIKey string
 
+// Model name for ChatGPT
+var OpenAIModel string
+
 // API Key for notion integration
 var NotionKey string
 
@@ -36,6 +39,7 @@ type configData struct {
 	AWSAccessKey       string
 	AWSSecret          string
 	OpenAIKey          string
+	OpenAIModel        string
 	NotionSecret       string
 }
 
@@ -61,6 +65,7 @@ func LoadConfigFromFileAndENV(path string) error {
 	AWSAccessKey = conf.AWSAccessKey
 	AWSSecret = conf.AWSSecret
 	OpenAIKey = conf.OpenAIKey
+	OpenAIModel = conf.OpenAIModel
 	NotionKey = conf.NotionSecret
 	return nil
 }
