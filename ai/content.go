@@ -70,16 +70,18 @@ func MessageContent(message *discordgo.Message, opts ConversionOptions) []respon
 		responses.ResponseInputContentParamOfInputText(fmt.Sprintf("%s\n%s\n</msg>", header, strings.TrimSpace(content))))
 
 	if opts.IncludeMedia {
-		chat.ForeachImageAttachment(message.Attachments, func(attachment *discordgo.MessageAttachment, img []byte) error {
+		for _, attachment := range message.Attachments {
+			if !chat.AttachmentIsImage(attachment) {
+				continue
+			}
+
 			result = append(result, responses.ResponseInputContentParamOfInputText(
 				fmt.Sprintf(`<attachment filename="%s" height="%d" width="%d" content_type="%s" />`,
 					attachment.Filename,
 					attachment.Height,
 					attachment.Width,
 					attachment.ContentType)))
-
-			return nil
-		})
+		}
 
 		for _, e := range message.Embeds {
 			if strings.TrimSpace(e.Title) == "" && strings.TrimSpace(e.Description) == "" {
