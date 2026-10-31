@@ -110,12 +110,12 @@ func apiCall[T any](url string) (T, error) {
 }
 
 func GetAnimeDetails(malID int) (AnimeDetails, error) {
-	full, err := apiCall[AnimeFull](fmt.Sprintf("https://api.jikan.moe/v4/anime/%d/full", malID))
+	full, err := apiCall[AnimeFull](fmt.Sprintf("https://api.tenrai.org/v1/anime/%d/full", malID))
 	if err != nil {
 		return AnimeDetails{}, err
 	}
 
-	staff, err := apiCall[[]AnimeStaff](fmt.Sprintf("https://api.jikan.moe/v4/anime/%d/staff", malID))
+	staff, err := apiCall[[]AnimeStaff](fmt.Sprintf("https://api.tenrai.org/v1/anime/%d/staff", malID))
 	if err != nil {
 		return AnimeDetails{}, err
 	}
@@ -124,7 +124,7 @@ func GetAnimeDetails(malID int) (AnimeDetails, error) {
 		staff = staff[:10]
 	}
 
-	characters, err := apiCall[[]AnimeCharacter](fmt.Sprintf("https://api.jikan.moe/v4/anime/%d/characters", malID))
+	characters, err := apiCall[[]AnimeCharacter](fmt.Sprintf("https://api.tenrai.org/v1/anime/%d/characters", malID))
 	if err != nil {
 		return AnimeDetails{}, err
 	}
@@ -156,7 +156,7 @@ func GetAnimeDetails(malID int) (AnimeDetails, error) {
 }
 
 func GetAnime(anime string) ([]AnimeInformation, error) {
-	url, err := url.Parse("https://api.jikan.moe/v4/anime")
+	url, err := url.Parse("https://api.tenrai.org/v1/anime")
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func GetAnime(anime string) ([]AnimeInformation, error) {
 }
 
 func GetSeason(year int, season string) ([]AnimeInformation, error) {
-	url, err := url.Parse(fmt.Sprintf("https://api.jikan.moe/v4/seasons/%d/%s", year, season))
+	url, err := url.Parse(fmt.Sprintf("https://api.tenrai.org/v1/seasons/%d/%s", year, season))
 	if err != nil {
 		return nil, err
 	}
