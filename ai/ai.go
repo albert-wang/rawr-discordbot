@@ -60,6 +60,7 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 		start = time.Now()
 
 		next := []responses.ResponseInputItemUnionParam{}
+		reply := ""
 		for _, output := range resp.Output {
 			switch output.Type {
 			case "function_call":
@@ -91,7 +92,7 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 								resp.Status, resp.IncompleteDetails, totalContent, cleaned)
 						}
 
-						return cleaned, nil
+						reply = cleaned
 					case "failed", "incomplete", "cancelled":
 						{
 							return "", fmt.Errorf("error: %s", msg.Status)
@@ -101,6 +102,10 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 			default:
 				// Ignored
 			}
+		}
+
+		if len(next) == 0 {
+			return reply, nil
 		}
 
 		if toolCalls < 0 {

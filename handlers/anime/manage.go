@@ -20,7 +20,7 @@ func (db *Database) Delete(args *DeleteArguments) (string, error) {
 	}
 
 	status.Status = "Done"
-	db.animes[name] = *status
+	db.put(name, *status)
 
 	return fmt.Sprintf("Deleted %s", name), nil
 }
@@ -45,12 +45,12 @@ func (db *Database) Set(args *SetArguments) (string, error) {
 			Subgroup:       "",
 		}
 
-		db.animes[args.Anime] = *target
+		db.put(args.Anime, *target)
 	} else {
 		target.CurrentEpisode = int64(args.Episode)
 		target.LastModified = time.Now()
 
-		db.animes[name] = *target
+		db.put(name, *target)
 	}
 
 	return target.Short(), nil
@@ -159,7 +159,7 @@ func (db *Database) Incr(args *IncrDecrArguments) (string, error) {
 
 	anime.CurrentEpisode += int64(args.Delta)
 	anime.LastModified = time.Now()
-	db.animes[name] = *anime
+	db.put(name, *anime)
 
 	if !args.NoSource {
 		link, err := anime.GetSourceLink()
@@ -181,7 +181,7 @@ func (db *Database) Decr(args *IncrDecrArguments) (string, error) {
 
 	anime.CurrentEpisode -= int64(args.Delta)
 	anime.LastModified = time.Now()
-	db.animes[name] = *anime
+	db.put(name, *anime)
 
 	if !args.NoSource {
 		link, err := anime.GetSourceLink()
