@@ -12,39 +12,37 @@ import (
 )
 
 // RandomS3FileFrom links a random file from a bucket with the given prefix.
-func RandomS3FileFrom(bucket string, prefix string) CommandHandler {
-	return func(m *discordgo.MessageCreate, args []string) error {
-		conn := storage.Redis.Get()
-		defer conn.Close()
+func RandomS3FileFrom(i *discordgo.InteractionCreate, bucket string, prefix string) error {
+	conn := storage.Redis.Get()
+	defer conn.Close()
 
-		key := storage.MakeKey("s3rand:%s%s", bucket, prefix)
-		contents := []string{}
+	key := storage.MakeKey("s3rand:%s%s", bucket, prefix)
+	contents := []string{}
 
-		err := storage.Cached(key, 60*60*24, &contents, func() (interface{}, error) {
-			bucket := storage.S3Client.Bucket(bucket)
-			resp, err := bucket.List(prefix, "/", "", 1000)
-			if err != nil {
-				return nil, err
-			}
-
-			names := []string{}
-			for _, v := range resp.Contents {
-				names = append(names, v.Key)
-			}
-			return names, nil
-		})
-
+	err := storage.Cached(key, 60*60*24, &contents, func() (interface{}, error) {
+		bucket := storage.S3Client.Bucket(bucket)
+		resp, err := bucket.List(prefix, "/", "", 1000)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		target := rand.Int31n(int32(len(contents)))
-		targetKey := contents[target]
-		if strings.HasPrefix(targetKey, prefix) {
-			targetKey = targetKey[len(prefix):]
+		names := []string{}
+		for _, v := range resp.Contents {
+			names = append(names, v.Key)
 		}
+		return names, nil
+	})
 
-		chat.SendMessageToChannel(m.ChannelID, fmt.Sprintf("http://%s/%s", bucket, prefix+url.QueryEscape(targetKey)))
-		return nil
+	if err != nil {
+		return err
 	}
+
+	target := rand.Int31n(int32(len(contents)))
+	targetKey := contents[target]
+	if strings.HasPrefix(targetKey, prefix) {
+		targetKey = targetKey[len(prefix):]
+	}
+
+	chat.SendFollowup(i.Interaction, fmt.Sprintf("http://%s/%s", bucket, prefix+url.QueryEscape(targetKey)))
+	return nil
 }
