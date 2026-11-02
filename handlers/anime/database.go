@@ -15,6 +15,11 @@ const ANIME_DATABASE = "34e3933e040180609b87e246ab09784a"
 
 type Database struct {
 	animes map[string]Status
+
+	// dirty holds the slugs whose Status changed since load. Save writes
+	// only these rows back, so a stale snapshot of the rest of the table
+	// can never overwrite changes that landed in Notion after we loaded.
+	dirty map[string]struct{}
 }
 
 // Old version, stored in redis
@@ -31,6 +36,7 @@ func LoadDatabaseFromRedis() *Database {
 
 	return &Database{
 		animes: animes,
+		dirty:  map[string]struct{}{},
 	}
 }
 
@@ -45,7 +51,15 @@ func LoadDatabase() *Database {
 
 	return &Database{
 		animes: animes,
+		dirty:  map[string]struct{}{},
 	}
+}
+
+// put stores s under name and marks the row dirty so Save writes it back.
+// Every mutation of animes must go through here.
+func (a *Database) put(name string, s Status) {
+	a.animes[name] = s
+	a.dirty[name] = struct{}{}
 }
 
 func (a *Database) search(lookup string) (string, *Status) {
@@ -72,13 +86,18 @@ func (a *Database) search(lookup string) (string, *Status) {
 }
 
 func (a *Database) Save() {
-	conn := storage.Redis.Get()
-	defer conn.Close()
-
 	_, ok := a.animes[""]
 	if ok {
 		delete(a.animes, "")
+		delete(a.dirty, "")
 	}
+
+	if len(a.dirty) == 0 {
+		return
+	}
+
+	conn := storage.Redis.Get()
+	defer conn.Close()
 
 	key := storage.MakeKey("animestatus")
 	err := storage.Serialize(conn, key, &a.animes)
@@ -96,8 +115,13 @@ func (a *Database) Save() {
 		a.animes[k] = v
 	}
 
+	changed := map[string]Status{}
+	for k := range a.dirty {
+		changed[k] = a.animes[k]
+	}
+
 	client := notionapi.NewClient(notionapi.Token(config.NotionKey))
-	err = saveAll(client, a.animes)
+	err = saveAll(client, changed)
 	if err != nil {
 		log.Fatal(err)
 	}

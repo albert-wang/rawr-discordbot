@@ -188,8 +188,10 @@ func richTextToString(rt []notionapi.RichText) string {
 	return strings.Join(parts, "")
 }
 
-// saveAll re-queries the Notion database, matches each local Status to a page
-// by SLUG_COLUMN, and updates the writable properties on the matched page.
+// saveAll re-queries the Notion database, matches each given Status (the
+// rows Database.Save marked dirty) to a page by SLUG_COLUMN, and updates the
+// writable properties on the matched page. Rows not passed in are never
+// touched, even if the local snapshot disagrees with Notion for them.
 // Duplicate slugs are fatal. Local statuses without a Notion page are logged
 // and skipped. Only properties already present in the page's Properties bag
 // are written; read-only/derived property types are skipped.

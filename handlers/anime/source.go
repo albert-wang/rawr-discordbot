@@ -17,7 +17,7 @@ func (db *Database) Sub(args *SubArguments) (string, error) {
 	}
 
 	anime.Subgroup = args.Subber
-	db.animes[name] = *anime
+	db.put(name, *anime)
 
 	return fmt.Sprintf("Set %s sub=%s", name, args.Subber), nil
 }
@@ -54,14 +54,14 @@ func (db *Database) Src(args *SrcArguments) (string, error) {
 
 	if args.Clear {
 		anime.EpisodeSource = ""
-		db.animes[name] = *anime
+		db.put(name, *anime)
 
 		return fmt.Sprintf("Set %s src=", name), nil
 	}
 
 	if args.Source != nil {
 		anime.EpisodeSource = *args.Source
-		db.animes[name] = *anime
+		db.put(name, *anime)
 
 		return fmt.Sprintf("Set %s src=%s", name, anime.EpisodeSource), nil
 	}
