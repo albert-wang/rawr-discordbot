@@ -1,13 +1,12 @@
 package anime
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
-	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/albert-wang/rawr-discordbot/config"
 	"github.com/albert-wang/rawr-discordbot/storage"
-	"github.com/bwmarrin/discordgo"
 
 	"github.com/jomei/notionapi"
 )
@@ -50,6 +49,11 @@ func LoadDatabase() *Database {
 }
 
 func (a *Database) search(lookup string) (string, *Status) {
+	exact, ok := a.animes[lookup]
+	if ok {
+		return lookup, &exact
+	}
+
 	candidates := []Status{}
 
 	key := ""
@@ -99,30 +103,25 @@ func (a *Database) Save() {
 	}
 }
 
-func (db *Database) Handle(cmd string, m *discordgo.MessageCreate, args []string) error {
+func (db *Database) Handle(cmd string, args []string) (string, error) {
 	switch cmd {
 	case "del":
-		return genericHandle(db, m, args, (*Database).Delete)
+		return genericHandle(db, args, (*Database).Delete)
 	case "set":
-		return genericHandle(db, m, args, (*Database).Set)
+		return genericHandle(db, args, (*Database).Set)
 	case "list":
-		return genericHandle(db, m, args, (*Database).List)
+		return genericHandle(db, args, (*Database).List)
 	case "incr":
-		return genericHandle(db, m, args, (*Database).Incr)
+		return genericHandle(db, args, (*Database).Incr)
 	case "decr":
-		return genericHandle(db, m, args, (*Database).Decr)
+		return genericHandle(db, args, (*Database).Decr)
 	case "inspect":
-		return genericHandle(db, m, args, (*Database).Inspect)
+		return genericHandle(db, args, (*Database).Inspect)
 	case "src":
-		return genericHandle(db, m, args, (*Database).Src)
+		return genericHandle(db, args, (*Database).Src)
 	case "sub":
-		return genericHandle(db, m, args, (*Database).Sub)
+		return genericHandle(db, args, (*Database).Sub)
 	default:
-		db.Help(m, args)
-		return nil
+		return "", fmt.Errorf("unknown anime command %s", cmd)
 	}
-}
-
-func (db *Database) Help(m *discordgo.MessageCreate, args []string) {
-	chat.SendPrivateMessageTo(m.Author.ID, "Usage: !anime <del|mv|incr|decr|set|list> <name> [<value>]")
 }

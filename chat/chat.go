@@ -23,9 +23,16 @@ func IsBotUser(user *discordgo.User) bool {
 	return false
 }
 
+// Handler receives the bot's messages and slash commands.
+type Handler interface {
+	OnMessage(*discordgo.Session, *discordgo.MessageCreate)
+	OnInteraction(*discordgo.Session, *discordgo.InteractionCreate)
+}
+
 // ConnectToWebsocket connects to the discord websocket with the given token.
-// This makes the bot appear online, and will begin receiving messages.
-func ConnectToWebsocket(token string, onMessage func(*discordgo.Session, *discordgo.MessageCreate)) error {
+// This makes the bot appear online, and will begin sending messages and
+// slash commands to handler. The bot's slash commands are replaced with commands.
+func ConnectToWebsocket(token string, handler Handler, commands []*discordgo.ApplicationCommand) error {
 	var err error
 	token = fmt.Sprintf("Bot %s", token)
 	client, err = discordgo.New(token)
@@ -34,7 +41,8 @@ func ConnectToWebsocket(token string, onMessage func(*discordgo.Session, *discor
 		return tracederror.New(err)
 	}
 
-	client.AddHandler(onMessage)
+	client.AddHandler(handler.OnMessage)
+	client.AddHandler(handler.OnInteraction)
 	err = client.Open()
 	if err != nil {
 		log.Print("Failed to open connection to discord websocket API")
@@ -50,7 +58,26 @@ func ConnectToWebsocket(token string, onMessage func(*discordgo.Session, *discor
 	}
 
 	self = user
+
+	_, err = client.ApplicationCommandBulkOverwrite(self.ID, "", commands)
+	if err != nil {
+		log.Print(err)
+	}
+
 	return nil
+}
+
+// SendFollowup replies to a deferred slash command. The first followup
+// replaces the "thinking" message, later ones are posted after it.
+func SendFollowup(i *discordgo.Interaction, message string, files ...*discordgo.File) {
+	_, err := client.FollowupMessageCreate(i, false, &discordgo.WebhookParams{
+		Content: message,
+		Files:   files,
+	})
+
+	if err != nil {
+		log.Print(err)
+	}
 }
 
 func GetChannelInformation(channelID string) (*discordgo.Channel, error) {

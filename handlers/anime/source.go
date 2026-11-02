@@ -3,8 +3,6 @@ package anime
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/bwmarrin/discordgo"
 )
 
 type SubArguments struct {
@@ -12,10 +10,10 @@ type SubArguments struct {
 	Subber string `arg:"positional"`
 }
 
-func (db *Database) Sub(msg *discordgo.MessageCreate, args *SubArguments) (string, error) {
+func (db *Database) Sub(args *SubArguments) (string, error) {
 	name, anime := db.search(args.Anime)
 	if anime == nil {
-		return UnknownAnime(args.Anime), nil
+		return db.UnknownAnime(args.Anime), nil
 	}
 
 	anime.Subgroup = args.Subber
@@ -28,10 +26,10 @@ type InspectArguments struct {
 	Anime string `arg:"positional"`
 }
 
-func (db *Database) Inspect(msg *discordgo.MessageCreate, args *InspectArguments) (string, error) {
+func (db *Database) Inspect(args *InspectArguments) (string, error) {
 	name, anime := db.search(args.Anime)
 	if anime == nil {
-		return UnknownAnime(args.Anime), nil
+		return db.UnknownAnime(args.Anime), nil
 	}
 
 	b, err := json.MarshalIndent(anime, "  ", "  ")
@@ -48,10 +46,10 @@ type SrcArguments struct {
 	Clear  bool    `arg:"--remove"`
 }
 
-func (db *Database) Src(msg *discordgo.MessageCreate, args *SrcArguments) (string, error) {
+func (db *Database) Src(args *SrcArguments) (string, error) {
 	name, anime := db.search(args.Anime)
 	if anime == nil {
-		return UnknownAnime(args.Anime), nil
+		return db.UnknownAnime(args.Anime), nil
 	}
 
 	if args.Clear {

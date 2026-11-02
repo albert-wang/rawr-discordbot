@@ -3,6 +3,8 @@ package ai
 import (
 	"encoding/json"
 	"log"
+	"maps"
+	"slices"
 
 	"github.com/openai/openai-go/v3/responses"
 )
@@ -50,9 +52,10 @@ func DefineTool[T any](
 }
 
 func ToolDefinitions() []responses.ToolUnionParam {
+	// Same order every request, so OpenAI can cache the tools and prompt.
 	out := make([]responses.ToolUnionParam, 0, len(registry))
-	for _, t := range registry {
-		def := t.Definition
+	for _, name := range slices.Sorted(maps.Keys(registry)) {
+		def := registry[name].Definition
 		out = append(out, responses.ToolUnionParam{OfFunction: &def})
 	}
 
