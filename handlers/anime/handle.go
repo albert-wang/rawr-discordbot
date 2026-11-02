@@ -1,81 +1,81 @@
 package anime
 
 import (
-	"bytes"
 	"log"
+	"sort"
+	"strings"
 
-	"github.com/albert-wang/rawr-discordbot/chat"
 	"github.com/alexflint/go-arg"
 	"github.com/bwmarrin/discordgo"
 )
 
-type Handler func(database *Database, cmd string, msg *discordgo.MessageCreate, args []string)
-
-func Handle(command string, m *discordgo.MessageCreate, args []string) {
+// Handle runs an anime command and returns what to reply with.
+func Handle(command string, args []string) (string, error) {
 	db := LoadDatabase()
 
-	err := db.Handle(command, m, args)
+	resp, err := db.Handle(command, args)
 	if err != nil {
 		log.Println(err)
-		return
+		return "", err
 	}
 
 	db.Save()
+	return resp, nil
 }
 
-func parseArguments[T any](m *discordgo.MessageCreate, args []string) (*T, error) {
-	buffer := bytes.Buffer{}
+// Autocomplete suggests up to 25 shows whose slug contains typed, most
+// recently watched first.
+func Autocomplete(typed string) []*discordgo.ApplicationCommandOptionChoice {
+	db := LoadDatabase()
+
+	matches := []Status{}
+	for k, v := range db.animes {
+		if strings.Contains(strings.ToLower(k), strings.ToLower(typed)) {
+			matches = append(matches, v)
+		}
+	}
+
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].LastModified.After(matches[j].LastModified)
+	})
+
+	choices := []*discordgo.ApplicationCommandOptionChoice{}
+	for _, v := range matches {
+		if len(choices) == 25 {
+			break
+		}
+
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  v.Short(),
+			Value: v.Name,
+		})
+	}
+
+	return choices
+}
+
+func genericHandle[T any](db *Database, args []string, cb func(db *Database, args *T) (string, error)) (string, error) {
 	cfg := arg.Config{
 		Program:           "nvg-tan",
 		IgnoreEnv:         true,
 		StrictSubcommands: true,
-		Out:               &buffer,
 	}
 
-	result := new(T)
-	parser, err := arg.NewParser(cfg, result)
+	typedArgs := new(T)
+	parser, err := arg.NewParser(cfg, typedArgs)
 	if err != nil {
 		log.Printf("args=%+v\n", args)
-		log.Printf("result=%+v\n", result)
+		log.Printf("result=%+v\n", typedArgs)
 
 		log.Print(err)
-		chat.SendMessageToChannel(m.ChannelID, buffer.String())
-		return result, err
+		return "", err
 	}
 
 	err = parser.Parse(args)
 	if err != nil {
 		log.Print(err)
-		return result, err
+		return "", err
 	}
 
-	return result, nil
-}
-
-func genericHandle[T any](db *Database, m *discordgo.MessageCreate, args []string, cb func(db *Database, m *discordgo.MessageCreate, args *T) (string, error)) error {
-	complete := chat.ShowTyping(m.ChannelID)
-	defer complete()
-
-	typedArgs, err := parseArguments[T](m, args)
-	if err != nil {
-		log.Print(err)
-		return err
-	}
-
-	resp, err := cb(db, m, typedArgs)
-	if err != nil {
-		log.Print(err)
-		return err
-	}
-
-	if resp != "" {
-		messages := chat.SplitMessage(resp)
-
-		complete()
-		for _, message := range messages {
-			chat.SendMessageToChannel(m.ChannelID, message)
-		}
-	}
-
-	return nil
+	return cb(db, typedArgs)
 }

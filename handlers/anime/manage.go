@@ -7,17 +7,16 @@ import (
 	"time"
 
 	"github.com/albert-wang/rawr-discordbot/chat"
-	"github.com/bwmarrin/discordgo"
 )
 
 type DeleteArguments struct {
 	Name string `arg:"positional"`
 }
 
-func (db *Database) Delete(msg *discordgo.MessageCreate, args *DeleteArguments) (string, error) {
+func (db *Database) Delete(args *DeleteArguments) (string, error) {
 	name, status := db.search(args.Name)
 	if status == nil {
-		return UnknownAnime(args.Name), nil
+		return db.UnknownAnime(args.Name), nil
 	}
 
 	status.Status = "Done"
@@ -31,7 +30,7 @@ type SetArguments struct {
 	Episode int    `arg:"positional"`
 }
 
-func (db *Database) Set(msg *discordgo.MessageCreate, args *SetArguments) (string, error) {
+func (db *Database) Set(args *SetArguments) (string, error) {
 	if args.Episode < -10 || args.Episode > 1000 {
 		return fmt.Sprintf("Invalid episode number: %d", args.Episode), nil
 	}
@@ -58,6 +57,8 @@ func (db *Database) Set(msg *discordgo.MessageCreate, args *SetArguments) (strin
 }
 
 type ListArguments struct {
+	SortByName bool `arg:"-n,--name"`
+	// Sorting by time is the default now, -u is only kept so it still parses.
 	SortByTime bool `arg:"-u,--updated"`
 	All        bool `arg:"-a,--all" help:"Even show shows that are over 3 months old"`
 }
@@ -73,13 +74,13 @@ func Filter[T any](seq []T, p func(a *T, i int) bool) []T {
 	return res
 }
 
-func (db *Database) List(msg *discordgo.MessageCreate, args *ListArguments) (string, error) {
+func (db *Database) List(args *ListArguments) (string, error) {
 	sorted := []Status{}
 	for _, v := range db.animes {
 		sorted = append(sorted, v)
 	}
 
-	if args.SortByTime {
+	if !args.SortByName {
 		sort.Slice(sorted, func(i, j int) bool {
 			if sorted[i].LastModified.Year() < 2000 {
 				return false
@@ -150,50 +151,46 @@ type IncrDecrArguments struct {
 	NoUpdateTime bool   `arg:"-t,--time-stop"`
 }
 
-func (db *Database) Incr(msg *discordgo.MessageCreate, args *IncrDecrArguments) (string, error) {
+func (db *Database) Incr(args *IncrDecrArguments) (string, error) {
 	name, anime := db.search(args.Anime)
 	if anime == nil {
-		return UnknownAnime(args.Anime), nil
+		return db.UnknownAnime(args.Anime), nil
 	}
 
 	anime.CurrentEpisode += int64(args.Delta)
 	anime.LastModified = time.Now()
 	db.animes[name] = *anime
 
-	chat.SendMessageToChannel(msg.ChannelID, anime.Short())
-
 	if !args.NoSource {
 		link, err := anime.GetSourceLink()
 		if err != nil {
-			return CannotSource(name, err), nil
+			return anime.Short() + "\n" + CannotSource(name, err), nil
 		}
 
-		return link, nil
+		return anime.Short() + "\n" + link, nil
 	}
 
-	return "", nil
+	return anime.Short(), nil
 }
 
-func (db *Database) Decr(msg *discordgo.MessageCreate, args *IncrDecrArguments) (string, error) {
+func (db *Database) Decr(args *IncrDecrArguments) (string, error) {
 	name, anime := db.search(args.Anime)
 	if anime == nil {
-		return UnknownAnime(args.Anime), nil
+		return db.UnknownAnime(args.Anime), nil
 	}
 
 	anime.CurrentEpisode -= int64(args.Delta)
 	anime.LastModified = time.Now()
 	db.animes[name] = *anime
 
-	chat.SendMessageToChannel(msg.ChannelID, anime.Short())
-
 	if !args.NoSource {
 		link, err := anime.GetSourceLink()
 		if err != nil {
-			return CannotSource(name, err), nil
+			return anime.Short() + "\n" + CannotSource(name, err), nil
 		}
 
-		return link, nil
+		return anime.Short() + "\n" + link, nil
 	}
 
-	return "", nil
+	return anime.Short(), nil
 }

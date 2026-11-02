@@ -17,21 +17,35 @@ func RegisterAttachmentFromMessage(m *discordgo.MessageCreate) {
 	messageMapping[key] = m
 }
 
-func RotateLastImages(m *discordgo.MessageCreate, args []string) error {
-	key := fmt.Sprintf("%s:%s", m.GuildID, m.ChannelID)
+func Rotate(i *discordgo.InteractionCreate) error {
+	amount := "90"
+
+	opt := i.ApplicationCommandData().GetOption("degrees")
+	if opt != nil {
+		amount = fmt.Sprintf("%d", opt.IntValue())
+	}
+
+	files := RotateLastImages(i.GuildID, i.ChannelID, amount)
+	if len(files) == 0 {
+		chat.SendFollowup(i.Interaction, "I don't see any images to rotate")
+		return nil
+	}
+
+	chat.SendFollowup(i.Interaction, "", files...)
+	return nil
+}
+
+// RotateLastImages rotates the images from the last message in the channel
+// that had any, or returns nothing if there wasn't one.
+func RotateLastImages(guildID string, channelID string, amount string) []*discordgo.File {
+	key := fmt.Sprintf("%s:%s", guildID, channelID)
 	m, ok := messageMapping[key]
 	if !ok {
-		chat.SendMessageToChannel(m.ChannelID, "I don't see any images to rotate")
 		return nil
 	}
 
 	complete := chat.ShowTyping(m.ChannelID)
 	defer complete()
-
-	amount := "90"
-	if len(args) == 1 {
-		amount = args[0]
-	}
 
 	files := []*discordgo.File{}
 
@@ -83,7 +97,5 @@ func RotateLastImages(m *discordgo.MessageCreate, args []string) error {
 		return nil
 	})
 
-	complete()
-	chat.SendImagesToChannel(m.ChannelID, files)
-	return nil
+	return files
 }
