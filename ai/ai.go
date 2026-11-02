@@ -19,7 +19,7 @@ import (
 	"github.com/albert-wang/rawr-discordbot/config"
 )
 
-func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDepth int, client openai.Client, messages []responses.ResponseInputItemUnionParam) (string, error) {
+func makeOpenAPIRequest(guild string, channel string, model AIModel, effort shared.ReasoningEffort, recursiveDepth int, client openai.Client, messages []responses.ResponseInputItemUnionParam) (string, error) {
 	ctx := context.Background()
 	toolCalls := int64(32)
 
@@ -27,7 +27,7 @@ func makeOpenAPIRequest(guild string, channel string, model AIModel, recursiveDe
 		Model:           model.Name,
 		MaxOutputTokens: param.NewOpt[int64](1024 * 16),
 		Reasoning: shared.ReasoningParam{
-			Effort: "low",
+			Effort: effort,
 		},
 		Instructions: param.NewOpt(GetPrompt()),
 		Tools:        ToolDefinitions(),
@@ -167,7 +167,16 @@ func UnboundedRespondToContent(guildID string, channelID string, messages []resp
 		}
 	}
 
-	msg, err := makeOpenAPIRequest(guildID, channelID, model, 3, client, messages)
+	// Threads are for harder questions, so she thinks hard with the best
+	// coding model there.
+	effort := shared.ReasoningEffort("low")
+	channel, err := chat.GetChannelInformation(channelID)
+	if err == nil && channel.IsThread() {
+		model = ThreadModel
+		effort = "high"
+	}
+
+	msg, err := makeOpenAPIRequest(guildID, channelID, model, effort, 3, client, messages)
 	if err != nil {
 		chat.SendMessageToChannel(channelID, "Error while generating message, "+err.Error())
 		log.Print(err)
