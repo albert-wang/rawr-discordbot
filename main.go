@@ -119,6 +119,17 @@ func (c *ChatOnMessage) OnMessage(s *discordgo.Session, m *discordgo.MessageCrea
 		}
 	}
 
+	// A thread started from one of her messages is a conversation with her,
+	// so she answers everything in it. The thread's ID is the starter's ID.
+	channel, err := s.State.Channel(m.ChannelID)
+	if err == nil && channel.IsThread() {
+		starter, err := s.ChannelMessage(channel.ParentID, channel.ID)
+		if err == nil && chat.IsBotUser(starter.Author) {
+			go c.ai.Invoke(m, []string{})
+			return
+		}
+	}
+
 	if len(m.Attachments) != 0 || len(m.Embeds) != 0 {
 		log.Print("Assigning attachment...")
 		handlers.RegisterAttachmentFromMessage(m)
